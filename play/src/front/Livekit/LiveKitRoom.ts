@@ -1,0 +1,846 @@
+import { z } from "zod";
+import { FilterType } from "@workadventure/messages";
+import { MapStore } from "@workadventure/store-utils";
+import type { LocalParticipant, Participant, TrackPublishOptions } from "livekit-client";
+import {
+    BackupCodecPolicy,
+    LocalAudioTrack,
+    LocalVideoTrack,
+    Room,
+    RoomEvent,
+    Track,
+    VideoPresets,
+    DisconnectReason,
+} from "livekit-client";
+import type { Readable, Unsubscriber } from "svelte/store";
+import { get } from "svelte/store";
+import type { Subscription } from "rxjs";
+import * as Sentry from "@sentry/svelte";
+import type { LocalStreamStoreValue } from "../Stores/MediaStore";
+import { localStreamStoreForPublishing, speakerSelectedStore, videoQualityStore } from "../Stores/MediaStore";
+import {
+    screenShareQualityStore,
+    screenSharingLocalStreamStore as screenSharingLocalStream,
+} from "../Stores/ScreenSharingStore";
+import { bandwidthConstrainedPreferenceStore } from "../Stores/BandwidthConstrainedPreferenceStore";
+import type { SpaceInterface, SpaceUserExtended } from "../Space/SpaceInterface";
+import type { StreamableSubjects } from "../Space/SpacePeerManager/SpacePeerManager";
+import { decrementLivekitRoomCount, incrementLivekitRoomCount } from "../Utils/E2EHooks";
+import { triggerReorderStore } from "../Stores/OrderedStreamableCollectionStore";
+import { deriveSwitchStore } from "../Stores/InterruptorStore";
+import { selectVideoPreset, type VideoQualitySetting } from "../WebRtc/VideoPresets";
+import { analyticsClient } from "../Administration/AnalyticsClient";
+import { SCREEN_SHARE_STARTING_PRIORITY, VIDEO_STARTING_PRIORITY } from "../Space/VideoBoxPriorities";
+import { LiveKitParticipant } from "./LivekitParticipant";
+import type { LiveKitRoomInterface } from "./LiveKitRoomInterface";
+
+const ParticipantMetadataSchema = z.object({
+    userId: z.string(),
+});
+
+type ParticipantMetadata = z.infer<typeof ParticipantMetadataSchema>;
+
+type LivekitRoomCounter = {
+    increment: () => void;
+    decrement: () => void;
+};
+
+export class LiveKitRoom implements LiveKitRoomInterface {
+    private room: Room | undefined;
+    private participants: MapStore<string, LiveKitParticipant> = new MapStore<string, LiveKitParticipant>();
+    // Stores LiveKit participants that connected before their corresponding spaceUser was available
+    private pendingParticipants: Map<string, Participant> = new Map();
+    private localParticipant: LocalParticipant | undefined;
+    private localScreenSharingVideoTrack: LocalVideoTrack | undefined;
+    private localScreenSharingAudioTrack: LocalAudioTrack | undefined;
+    private localCameraTrack: LocalVideoTrack | undefined;
+    private localMicrophoneTrack: LocalAudioTrack | undefined;
+    private screenShareUpdateQueue: Promise<void> = Promise.resolve();
+    private unsubscribers: Unsubscriber[] = [];
+    private rxjsSubscriptions: Subscription[] = [];
+
+    // Bound event handlers to avoid memory leaks
+    private readonly boundHandleParticipantConnected = this.handleParticipantConnected.bind(this);
+    private readonly boundHandleParticipantDisconnected = this.handleParticipantDisconnected.bind(this);
+    private readonly boundHandleActiveSpeakersChanged = this.handleActiveSpeakersChanged.bind(this);
+    private readonly boundHandleDisconnected = this.handleDisconnected.bind(this);
+
+    constructor(
+        private serverUrl: string,
+        private token: string,
+        private space: SpaceInterface,
+        private _streamableSubjects: StreamableSubjects,
+        private _blockedUsersStore: Readable<Set<string>>,
+        private abortSignal: AbortSignal,
+        private screenSharingLocalStreamStore: Readable<LocalStreamStoreValue> = screenSharingLocalStream,
+        private speakerDeviceIdStore: Readable<string | undefined> = speakerSelectedStore,
+        private _livekitRoomCounter: LivekitRoomCounter = {
+            increment: incrementLivekitRoomCount,
+            decrement: decrementLivekitRoomCount,
+        },
+        private _localStreamStore: Readable<LocalStreamStoreValue> = localStreamStoreForPublishing
+    ) {
+        this._livekitRoomCounter.increment();
+    }
+
+    public async prepareConnection(): Promise<Room> {
+        this.room = new Room({
+            adaptiveStream: {
+                pauseVideoInBackground: true,
+            },
+            dynacast: true,
+            publishDefaults: {
+                // Commented out: the default simulcast layers are sufficient for our use case
+                // videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
+                videoCodec: "vp9",
+                // If a user does not support VP9, do not downgrade everyone to VP8.
+                // Instead, let the publisher publish both VP9 and VP8 tracks using simulcast.
+                // Viewers will see the best possible codec they support.
+                backupCodecPolicy: BackupCodecPolicy.SIMULCAST,
+                backupCodec: {
+                    codec: "vp8",
+                },
+            },
+            videoCaptureDefaults: {
+                resolution: VideoPresets.h720,
+            },
+            stopLocalTrackOnUnpublish: false,
+        });
+
+        // Each track will subscribe to the room events like cleanup, so we want to be ready for a lot of listeners
+        this.room.setMaxListeners(10000);
+
+        this.localParticipant = this.room.localParticipant;
+
+        await this.room.prepareConnection(this.serverUrl, this.token);
+
+        return this.room;
+    }
+
+    private joinRoomCalled = false;
+
+    public async joinRoom() {
+        if (this.joinRoomCalled) {
+            return;
+        }
+        if (this.abortSignal.aborted) {
+            return;
+        }
+        this.joinRoomCalled = true;
+
+        const room = this.room ?? (await this.prepareConnection());
+
+        this.handleRoomEvents();
+        await room.connect(this.serverUrl, this.token, {
+            autoSubscribe: true,
+        });
+        if (this.abortSignal.aborted) {
+            await room.disconnect();
+            return;
+        }
+
+        this.synchronizeMediaState();
+
+        // Subscribe to observeUserJoined to process pending participants when a specific spaceUser becomes available
+        this.rxjsSubscriptions.push(
+            this.space.observeUserJoined.subscribe((spaceUser) => {
+                this.processPendingParticipantForUser(spaceUser);
+            })
+        );
+
+        // Process existing remote participants
+        Array.from(room.remoteParticipants.values()).forEach((participant) => {
+            const id = this.getParticipantId(participant);
+            if (!participant.permissions?.canPublish) {
+                console.info("participant has no publish permission", id);
+                return;
+            }
+
+            const spaceUser = this.space.getSpaceUserBySpaceUserId(id);
+            if (!spaceUser) {
+                // Store the participant to process later when the spaceUser becomes available.
+                // This handles the race condition where LiveKit participants may connect
+                // before their corresponding SpaceUser message arrives from the backend.
+                this.pendingParticipants.set(id, participant);
+                return;
+            }
+
+            if (spaceUser.spaceUserId === this.space.mySpaceUserId) {
+                return;
+            }
+
+            this.createLiveKitParticipant(participant, spaceUser);
+        });
+    }
+
+    private getQualitySetting(isScreenShare: boolean): VideoQualitySetting {
+        return isScreenShare ? get(screenShareQualityStore) : get(videoQualityStore);
+    }
+
+    private getBandwidthConstrainedPreference(): RTCDegradationPreference {
+        return get(bandwidthConstrainedPreferenceStore);
+    }
+
+    private getPresetForTrack(track: MediaStreamVideoTrack, isScreenShare: boolean): { bitrate: number; fps: number } {
+        const settings = track.getSettings();
+        const width = settings.width || 1280;
+        const height = settings.height || 720;
+        return selectVideoPreset(height, width, isScreenShare, this.getQualitySetting(isScreenShare));
+    }
+
+    private handleCameraTrack(localStream: LocalStreamStoreValue | undefined): void {
+        if (localStream === undefined || localStream.type !== "success" || !localStream.stream) {
+            this.unpublishCameraTrack().catch((err) => {
+                console.error("An error occurred while unpublishing camera track", err);
+                Sentry.captureException(err);
+            });
+            return;
+        }
+
+        const videoTrack = localStream.stream.getVideoTracks()[0];
+
+        if (!videoTrack) {
+            this.unpublishCameraTrack().catch((err) => {
+                console.error("An error occurred while unpublishing camera track", err);
+                Sentry.captureException(err);
+            });
+            return;
+        }
+
+        // Are we trying to publish the same track again?
+        // Note: in practice, we never reach this point with the same track, because we get a new track
+        // each time we stop and restart the camera.
+        if (this.localCameraTrack && this.localCameraTrack.mediaStreamTrack.id === videoTrack.id) {
+            if (this.localCameraTrack.isUpstreamPaused) {
+                this.localCameraTrack.resumeUpstream().catch((err) => {
+                    console.error("An error occurred while unmuting camera track", err);
+                    Sentry.captureException(err);
+                });
+            }
+            return;
+        }
+
+        if (!this.localParticipant) {
+            throw new Error("Local participant not found");
+        }
+
+        if (!this.localCameraTrack) {
+            this.localCameraTrack = new LocalVideoTrack(videoTrack);
+            const publishOptions: TrackPublishOptions = {
+                source: Track.Source.Camera,
+                videoCodec: "vp9",
+                simulcast: true,
+                // Commented out: the default simulcast layers are sufficient for our use case
+                //videoSimulcastLayers: [VideoPresets.h1080, VideoPresets.h360, VideoPresets.h216,  ],
+            };
+
+            const preset = this.getPresetForTrack(videoTrack, false);
+            publishOptions.videoEncoding = {
+                maxBitrate: preset.bitrate,
+                maxFramerate: preset.fps,
+            };
+
+            this.localParticipant.publishTrack(this.localCameraTrack, publishOptions).catch((err) => {
+                console.error("An error occurred while publishing camera track", err);
+                Sentry.captureException(err);
+            });
+        } else {
+            this.localCameraTrack
+                .replaceTrack(videoTrack, {
+                    userProvidedTrack: true,
+                })
+                .catch((err) => {
+                    console.error("An error occurred while replacing camera track", err);
+                    Sentry.captureException(err);
+                });
+        }
+    }
+
+    private handleMicrophoneTrack(localStream: LocalStreamStoreValue | undefined): void {
+        if (localStream === undefined || localStream.type !== "success" || !localStream.stream) {
+            this.unpublishMicrophoneTrack().catch((err) => {
+                console.error("An error occurred while unpublishing microphone track", err);
+                Sentry.captureException(err);
+            });
+            return;
+        }
+
+        const audioTrack = localStream.stream.getAudioTracks()[0];
+
+        if (!audioTrack) {
+            this.unpublishMicrophoneTrack().catch((err) => {
+                console.error("An error occurred while unpublishing microphone track", err);
+                Sentry.captureException(err);
+            });
+            return;
+        }
+
+        // Are we trying to publish the same track again?
+        // Note: in practice, we never reach this point with the same track, because we get a new track
+        // each time we stop and restart the microphone.
+        if (this.localMicrophoneTrack && this.localMicrophoneTrack.mediaStreamTrack.id === audioTrack.id) {
+            if (this.localMicrophoneTrack.isUpstreamPaused) {
+                this.localMicrophoneTrack.resumeUpstream().catch((err) => {
+                    console.error("An error occurred while unmuting microphone track", err);
+                    Sentry.captureException(err);
+                });
+            }
+            return;
+        }
+
+        if (!this.localParticipant) {
+            throw new Error("Local participant not found");
+        }
+
+        if (
+            this.space.filterType === FilterType.LIVE_STREAMING_USERS_WITH_FEEDBACK &&
+            !this.space.getSpaceUserBySpaceUserId(this.space.mySpaceUserId)?.megaphoneState
+        ) {
+            return;
+        }
+
+        if (!this.localMicrophoneTrack) {
+            this.localMicrophoneTrack = new LocalAudioTrack(audioTrack);
+
+            this.localParticipant
+                .publishTrack(this.localMicrophoneTrack, {
+                    source: Track.Source.Microphone,
+                })
+                .catch((err) => {
+                    console.error("An error occurred while publishing microphone track", err);
+                    Sentry.captureException(err);
+                });
+        } else {
+            this.localMicrophoneTrack
+                .replaceTrack(audioTrack, {
+                    userProvidedTrack: true,
+                })
+                .catch((err) => {
+                    console.error("An error occurred while replacing microphone track", err);
+                    Sentry.captureException(err);
+                });
+        }
+    }
+
+    private synchronizeMediaState() {
+        this.unsubscribers.push(
+            deriveSwitchStore(this._localStreamStore, this.space.isStreamingStore).subscribe((localStream) => {
+                this.handleCameraTrack(localStream);
+
+                if (
+                    this.space.filterType === FilterType.LIVE_STREAMING_USERS_WITH_FEEDBACK &&
+                    !this.space.getSpaceUserBySpaceUserId(this.space.mySpaceUserId)?.megaphoneState
+                ) {
+                    this.unpublishMicrophoneTrack().catch((err) => {
+                        console.error("An error occurred while unpublishing microphone track", err);
+                        Sentry.captureException(err);
+                    });
+                    return;
+                }
+                this.handleMicrophoneTrack(localStream);
+            })
+        );
+
+        this.unsubscribers.push(
+            this.screenSharingLocalStreamStore.subscribe((stream) => {
+                this.queueScreenShareUpdate(stream);
+            })
+        );
+
+        this.unsubscribers.push(
+            this.speakerDeviceIdStore.subscribe((deviceId) => {
+                if (!deviceId) return;
+
+                this.room?.switchActiveDevice("audiooutput", deviceId).catch((err) => {
+                    console.error("An error occurred while switching active device", err);
+                    Sentry.captureException(err);
+                });
+            })
+        );
+
+        this.unsubscribers.push(
+            bandwidthConstrainedPreferenceStore.subscribe((preference) => {
+                if (!this.localScreenSharingVideoTrack) {
+                    return;
+                }
+                this.localScreenSharingVideoTrack.setDegradationPreference(preference).catch((err) => {
+                    console.error("An error occurred while setting degradation preference", err);
+                    Sentry.captureException(err);
+                });
+            })
+        );
+    }
+
+    private queueScreenShareUpdate(stream: LocalStreamStoreValue): void {
+        this.screenShareUpdateQueue = this.screenShareUpdateQueue
+            .then(() => this.handleScreenShareUpdate(stream))
+            .catch((err) => {
+                console.error("An error occurred while handling a screen share update", err);
+                Sentry.captureException(err);
+            });
+    }
+
+    private async handleScreenShareUpdate(stream: LocalStreamStoreValue): Promise<void> {
+        const streamResult = stream.type === "success" ? stream.stream : undefined;
+
+        if (!this.localParticipant) {
+            console.error("Local participant not found");
+            Sentry.captureException(new Error("Local participant not found"));
+            return;
+        }
+
+        if (!streamResult) {
+            if (this.localScreenSharingVideoTrack || this.localScreenSharingAudioTrack) {
+                await this.unpublishAllScreenShareTrack();
+            }
+            return;
+        }
+
+        const screenShareVideoTrack = streamResult.getVideoTracks()[0];
+        const screenShareAudioTrack = streamResult.getAudioTracks()[0];
+
+        if (!screenShareVideoTrack) {
+            return;
+        }
+
+        if (!this.localScreenSharingVideoTrack) {
+            this.localScreenSharingVideoTrack = new LocalVideoTrack(screenShareVideoTrack);
+
+            const screenSharePublishOptions: TrackPublishOptions = {
+                source: Track.Source.ScreenShare,
+                videoCodec: "vp9",
+                simulcast: true,
+                // Commented out: the default simulcast layers are sufficient for our use case
+                // screenShareSimulcastLayers: [ScreenSharePresets.h720fps30]
+                degradationPreference: this.getBandwidthConstrainedPreference(),
+            };
+
+            const preset = this.getPresetForTrack(screenShareVideoTrack, true);
+            screenSharePublishOptions.screenShareEncoding = {
+                maxBitrate: preset.bitrate,
+                maxFramerate: preset.fps,
+            };
+
+            await this.localParticipant.publishTrack(this.localScreenSharingVideoTrack, screenSharePublishOptions);
+        } else if (this.localScreenSharingVideoTrack.mediaStreamTrack.id === screenShareVideoTrack.id) {
+            if (this.localScreenSharingVideoTrack.isUpstreamPaused) {
+                await this.localScreenSharingVideoTrack.resumeUpstream();
+            }
+        } else {
+            await this.localScreenSharingVideoTrack.replaceTrack(screenShareVideoTrack, {
+                userProvidedTrack: true,
+            });
+
+            if (this.localScreenSharingVideoTrack.isUpstreamPaused) {
+                await this.localScreenSharingVideoTrack.resumeUpstream();
+            }
+        }
+
+        if (screenShareAudioTrack) {
+            if (!this.localScreenSharingAudioTrack) {
+                this.localScreenSharingAudioTrack = new LocalAudioTrack(screenShareAudioTrack);
+
+                await this.localParticipant.publishTrack(this.localScreenSharingAudioTrack, {
+                    source: Track.Source.ScreenShareAudio,
+                });
+            } else if (this.localScreenSharingAudioTrack.mediaStreamTrack.id === screenShareAudioTrack.id) {
+                if (this.localScreenSharingAudioTrack.isUpstreamPaused) {
+                    await this.localScreenSharingAudioTrack.resumeUpstream();
+                }
+            } else {
+                await this.localScreenSharingAudioTrack.replaceTrack(screenShareAudioTrack, {
+                    userProvidedTrack: true,
+                });
+
+                if (this.localScreenSharingAudioTrack.isUpstreamPaused) {
+                    await this.localScreenSharingAudioTrack.resumeUpstream();
+                }
+            }
+        } else if (this.localScreenSharingAudioTrack && !this.localScreenSharingAudioTrack.isUpstreamPaused) {
+            await this.localScreenSharingAudioTrack.pauseUpstream();
+        }
+    }
+
+    private async unpublishAllScreenShareTrack() {
+        if (!this.localParticipant) {
+            console.error("Local participant not found");
+            Sentry.captureException(new Error("Local participant not found"));
+            return;
+        }
+
+        // Unpublish both video and audio screen share tracks
+        await Promise.all(
+            Array.from(this.localParticipant.trackPublications.values())
+                .filter(
+                    (publication) =>
+                        publication.track &&
+                        (publication.source === Track.Source.ScreenShare ||
+                            publication.source === Track.Source.ScreenShareAudio)
+                )
+                .map(async (publication) => {
+                    const track = publication.track;
+                    if (track) {
+                        // Note: for some reason, unpublishing / publishing a new track causes memory leaks.
+                        // Instead, we just pause the upstream of the track when unpublishing, and "replaceTrack" when publishing a new one.
+                        // await this.localParticipant?.unpublishTrack(track, false);
+                        await track.pauseUpstream();
+                    }
+                })
+        );
+
+        // Note: we don't clear local track references because of the memory leak issue mentioned above.
+        // We need to keep them to be able to replace the tracks when publishing a new screen share.
+        //this.localScreenSharingVideoTrack = undefined;
+        //this.localScreenSharingAudioTrack = undefined;
+    }
+
+    /**
+     * Unpublishes the current microphone track
+     */
+    private async unpublishMicrophoneTrack(): Promise<void> {
+        if (!this.localParticipant) {
+            return;
+        }
+
+        if (this.localMicrophoneTrack) {
+            await this.localMicrophoneTrack.pauseUpstream();
+            // Note: for some reason, unpublishing / publishing a new track causes memory leaks.
+            // Instead, we just pause the upstream of the track when unpublishing, and "replaceTrack" when publishing a new one.
+            // await this.localParticipant.unpublishTrack(this.localMicrophoneTrack, false);
+            // this.localMicrophoneTrack = undefined;
+        }
+    }
+
+    /**
+     * Unpublishes the current camera track
+     */
+    private async unpublishCameraTrack(): Promise<void> {
+        if (!this.localParticipant) {
+            return;
+        }
+
+        if (this.localCameraTrack) {
+            await this.localCameraTrack.pauseUpstream();
+            // Note: for some reason, unpublishing / publishing a new track causes memory leaks.
+            // Instead, we just pause the upstream of the track when unpublishing, and "replaceTrack" when publishing a new one.
+            // await this.localParticipant?.unpublishTrack(this.localCameraTrack, false);
+            // this.localCameraTrack = undefined;
+        }
+    }
+
+    private handleRoomEvents() {
+        if (!this.room) {
+            console.error("Room not found");
+            Sentry.captureException(new Error("Room not found"));
+            return;
+        }
+
+        this.room.on(RoomEvent.ParticipantConnected, this.boundHandleParticipantConnected);
+        this.room.on(RoomEvent.ParticipantDisconnected, this.boundHandleParticipantDisconnected);
+        this.room.on(RoomEvent.ActiveSpeakersChanged, this.boundHandleActiveSpeakersChanged);
+        this.room.on(RoomEvent.ParticipantActive, this.boundHandleParticipantConnected);
+        this.room.on(RoomEvent.Disconnected, this.boundHandleDisconnected);
+    }
+
+    private getDisconnectReasonLabel(reason?: DisconnectReason): string {
+        if (reason === undefined) {
+            return "UNKNOWN";
+        }
+        return DisconnectReason[reason] ?? `UNKNOWN(${reason})`;
+    }
+
+    private handleDisconnected(reason?: DisconnectReason) {
+        const disconnectReasonLabel = this.getDisconnectReasonLabel(reason);
+
+        if (reason === DisconnectReason.ROOM_CLOSED || reason === DisconnectReason.ROOM_DELETED) {
+            // Normal closure, no need to log an error
+            return;
+        }
+
+        if (reason !== DisconnectReason.CLIENT_INITIATED) {
+            // Error case: let's log and capture the error. We don't want to trigger a reconnection.
+            // If we are in this case, it means that the room was closed by the client for a reason
+            // other than a backend server message.
+            Sentry.captureMessage(`Room disconnected without a valid reason: ${disconnectReasonLabel}`, {
+                level: "warning",
+                tags: {
+                    reason: disconnectReasonLabel,
+                },
+            });
+        }
+
+        if (reason === DisconnectReason.STATE_MISMATCH || reason === DisconnectReason.JOIN_FAILURE) {
+            analyticsClient.retryConnectionLivekit();
+            this.space.emitBackEvent({
+                event: {
+                    $case: "meetingConnectionRestartMessage",
+                    meetingConnectionRestartMessage: {},
+                },
+            });
+        }
+    }
+
+    private parseParticipantMetadata(participant: Participant): ParticipantMetadata {
+        if (!participant.metadata) {
+            throw new Error("Participant metadata is undefined");
+        }
+        try {
+            const rawMetadata = JSON.parse(participant.metadata);
+            return ParticipantMetadataSchema.parse(rawMetadata);
+        } catch (error) {
+            console.error("Failed to parse participant metadata:", error);
+            Sentry.captureException(error);
+            throw new Error("Invalid participant metadata", { cause: error });
+        }
+    }
+
+    private getParticipantId(participant: Participant): string {
+        const metadata = this.parseParticipantMetadata(participant);
+        return metadata.userId;
+    }
+
+    public leaveRoom() {
+        if (!this.room) {
+            console.error("Room not found");
+            Sentry.captureException(new Error("Room not found"));
+            return;
+        }
+
+        this.room.disconnect(false).catch((err) => {
+            console.error("An error occurred in leaveRoom", err);
+            Sentry.captureException(err);
+        });
+    }
+
+    public async dispatchStream(mediaStream: MediaStream): Promise<void> {
+        if (!this.localParticipant) {
+            console.error("Local participant not found");
+            Sentry.captureException(new Error("Local participant not found"));
+            return;
+        }
+
+        const audioTrack = mediaStream.getAudioTracks()[0];
+        if (!audioTrack) {
+            console.error("No audio track found in the media stream");
+            Sentry.captureException(new Error("No audio track found in the media stream"));
+            return;
+        }
+
+        await this.localParticipant.publishTrack(audioTrack, {
+            source: Track.Source.Microphone,
+        });
+    }
+
+    private handleParticipantConnected(participant: Participant) {
+        if (this.abortSignal.aborted) {
+            return;
+        }
+        const id = this.getParticipantId(participant);
+
+        // Skip if already registered
+        if (this.participants.has(participant.sid)) {
+            return;
+        }
+
+        const spaceUser = this.space.getSpaceUserBySpaceUserId(id);
+
+        if (!spaceUser) {
+            // Store the participant to process later when the spaceUser becomes available
+            this.pendingParticipants.set(id, participant);
+            return;
+        }
+
+        // Skip if this is the local user
+        if (spaceUser.spaceUserId === this.space.mySpaceUserId) {
+            return;
+        }
+
+        this.createLiveKitParticipant(participant, spaceUser);
+    }
+
+    /**
+     * Creates a LiveKitParticipant and adds it to the participants map
+     */
+    private createLiveKitParticipant(
+        participant: Participant,
+        spaceUser: ReturnType<SpaceInterface["getSpaceUserBySpaceUserId"]>
+    ) {
+        if (!spaceUser) {
+            return;
+        }
+
+        if (this.participants.has(participant.sid)) {
+            return;
+        }
+
+        this.participants.set(
+            participant.sid,
+            new LiveKitParticipant(
+                participant,
+                spaceUser,
+                this._streamableSubjects,
+                this._blockedUsersStore,
+                this.abortSignal
+            )
+        );
+    }
+
+    /**
+     * Processes a specific pending participant when their corresponding spaceUser becomes available.
+     * This is more efficient than scanning the entire pending list on every usersStore change.
+     * @param spaceUser The spaceUser that just joined the space
+     */
+    private processPendingParticipantForUser(spaceUser: SpaceUserExtended): void {
+        if (this.abortSignal.aborted) {
+            return;
+        }
+
+        const participant = this.pendingParticipants.get(spaceUser.spaceUserId);
+        if (!participant) {
+            return;
+        }
+
+        // Skip if this is the local user
+        if (spaceUser.spaceUserId === this.space.mySpaceUserId) {
+            this.pendingParticipants.delete(spaceUser.spaceUserId);
+            return;
+        }
+
+        this.createLiveKitParticipant(participant, spaceUser);
+        this.pendingParticipants.delete(spaceUser.spaceUserId);
+    }
+
+    private handleParticipantDisconnected(participant: Participant) {
+        const localParticipant = this.participants.get(participant.sid);
+
+        if (localParticipant) {
+            localParticipant.destroy();
+        }
+
+        this.participants.delete(participant.sid);
+
+        // Also remove from pending participants if present
+        const id = this.getParticipantId(participant);
+        this.pendingParticipants.delete(id);
+    }
+
+    /**
+     * A set of previous participant SIDs who were speaking
+     */
+    private previousSpeakers: Set<string> = new Set();
+
+    private handleActiveSpeakersChanged(speakers: Participant[]) {
+        let priority = 0;
+        const speakersSet = new Set(speakers.map((s) => s.sid));
+
+        //TODO: review implementation - iterating over all participants each time
+        this.participants.forEach((participant) => {
+            if (speakersSet.has(participant.participant.sid)) {
+                participant.setActiveSpeaker(true);
+            } else {
+                participant.setActiveSpeaker(false);
+
+                if (this.previousSpeakers.has(participant.participant.sid)) {
+                    // If the participant was previously speaking but is not speaking anymore, we set it as recently spoken
+                    const previousSpeakerVideoBox = this.space.allVideoStreamStore.get(
+                        participant.participant.identity
+                    );
+                    if (previousSpeakerVideoBox) {
+                        previousSpeakerVideoBox.lastSpeakTimestamp = Date.now();
+                    }
+                }
+            }
+        });
+
+        // Let's reset the priority of the participant
+        for (const videoStream of this.space.allVideoStreamStore.values()) {
+            const lastSpeakTimestamp = videoStream.lastSpeakTimestamp;
+            let bonusPriority = 0;
+            if (lastSpeakTimestamp) {
+                // If a participant has spoken but is not speaking anymore, we give a bonus priority based on the time since the last speak.
+                const lastTimeSinceLastSpeak = Date.now() - lastSpeakTimestamp;
+                // The bonus priority is calculated based on the time since the last speak and cannot be greater than 100.
+                bonusPriority = 100 * Math.exp(-lastTimeSinceLastSpeak / 100000);
+            }
+            videoStream.priority = VIDEO_STARTING_PRIORITY + 9999 - bonusPriority;
+        }
+
+        for (const speaker of speakers) {
+            // The current user is always displayed first, so we skip it
+            if (this.space.mySpaceUserId === speaker.identity) {
+                continue;
+            }
+            const extendedVideoStream = this.space.getVideoPeerVideoBox(speaker.identity);
+
+            // If this is a video and not a screen share, we add 2000 to the priority
+            if (!extendedVideoStream) {
+                continue;
+            }
+
+            if (get(extendedVideoStream.streamable)?.displayMode === "cover") {
+                extendedVideoStream.priority = priority + VIDEO_STARTING_PRIORITY;
+            } else {
+                extendedVideoStream.priority = priority + SCREEN_SHARE_STARTING_PRIORITY;
+            }
+            priority++;
+        }
+
+        // Let's trigger an update on the space's videoStreamStore to reorder the view
+        // To do so, we just take the first element of the map and put it back in the store at the same key.
+        if (get(triggerReorderStore) === 0) {
+            triggerReorderStore.set(1);
+        } else {
+            triggerReorderStore.set(0);
+        }
+
+        this.previousSpeakers = speakersSet;
+    }
+
+    public destroy(): void {
+        try {
+            this.unsubscribers.forEach((unsubscriber) => unsubscriber());
+            this.rxjsSubscriptions.forEach((subscription) => subscription.unsubscribe());
+            this.participants.forEach((participant) => participant.destroy());
+            this.pendingParticipants.clear();
+            this.room?.off(RoomEvent.ParticipantConnected, this.boundHandleParticipantConnected);
+            this.room?.off(RoomEvent.ParticipantDisconnected, this.boundHandleParticipantDisconnected);
+            this.room?.off(RoomEvent.ActiveSpeakersChanged, this.boundHandleActiveSpeakersChanged);
+            this.room?.off(RoomEvent.ParticipantActive, this.boundHandleParticipantConnected);
+            this.room?.off(RoomEvent.Disconnected, this.boundHandleDisconnected);
+            this.leaveRoom();
+        } finally {
+            this._livekitRoomCounter.decrement();
+        }
+    }
+
+    /**
+     * [DEBUG] Forces the WebSocket connection to close to test reconnection mechanism.
+     * This method is for development/testing purposes only.
+     * @returns true if the WebSocket was closed, false if no connection exists
+     */
+    public forceWebSocketClose(): boolean {
+        // [JUSTIFICATION] Accessing private LiveKit internals is necessary here because the public API does not expose the WebSocket connection.
+        // This use of `any` is limited to this debug-only method to forcibly close the WebSocket for testing reconnection logic.
+        // This approach is fragile and may break if LiveKit internals change; do not use as a pattern elsewhere.
+        /**
+         * [INTERNAL ACCESS WARNING]
+         * The following code intentionally accesses private internals of the LiveKit Room object
+         * (room.engine.client.ws) for debugging/testing purposes only.
+         * This is fragile and may break if the LiveKit SDK changes its internal structure in future versions.
+         * Always check for a public API before using this pattern, and do NOT use this in production code.
+         */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const engine = (this.room as any)?.engine;
+        const client = engine?.client;
+        const ws = client?.ws as WebSocket | undefined;
+
+        if (ws) {
+            console.info("[DEBUG] Forcing LiveKit WebSocket close to trigger reconnection");
+            ws.close();
+            return true;
+        }
+
+        console.warn("[DEBUG] No LiveKit WebSocket connection found to close");
+        return false;
+    }
+}
