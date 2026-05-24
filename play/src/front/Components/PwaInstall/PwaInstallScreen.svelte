@@ -3,7 +3,6 @@
     import { LL } from "../../../i18n/i18n-svelte";
     import logoImg from "../images/logo.svg";
     import bgMap from "../images/map-exemple.png";
-    import poweredByWorkAdventureImg from "../images/Powered_By_WorkAdventure_Big.png";
     import pwaDefaultBackground from "../images/pwa-background-image.jpg";
     import { gameManager } from "../../Phaser/Game/GameManager";
     import { analyticsClient } from "../../Administration/AnalyticsClient";
@@ -219,10 +218,5 @@
             </div>
         </div>
 
-        {#if logo !== logoImg && gameManager.currentStartedRoom.showPoweredBy !== false}
-            <section class="flex justify-center pb-2">
-                <img draggable="false" src={poweredByWorkAdventureImg} alt="Powered by WorkAdventure" class="h-14" />
-            </section>
-        {/if}
     </div>
 </div>

@@ -62,6 +62,7 @@ export enum SubMenusInterface {
     settings = "settings",
     profile = "profile",
     aboutRoom = "credit",
+    events = "events",
     globalMessages = "globalMessages",
     contact = "contact",
     report = "report",
@@ -116,6 +117,11 @@ function createSubMenusStore() {
         {
             type: "translated",
             key: SubMenusInterface.aboutRoom,
+            visible: alwaysVisible,
+        },
+        {
+            type: "translated",
+            key: SubMenusInterface.events,
             visible: alwaysVisible,
         },
         {

@@ -27,6 +27,7 @@
     import ChatSubMenu from "./ChatSubMenu.svelte";
     import ShortcutSubMenu from "./ShortcutSubMenu.svelte";
     import HelpSubMenu from "./HelpSubMenu.svelte";
+    import EventsSubMenu from "./EventsSubMenu.svelte";
 
     let activeSubMenu: MenuItem = $subMenusStore[$activeSubMenuStore];
     let activeComponent: ComponentType = ProfileSubMenu;
@@ -79,6 +80,9 @@
                 case SubMenusInterface.aboutRoom:
                     activeComponent = AboutRoomSubMenu;
                     analyticsClient.menuCredit();
+                    break;
+                case SubMenusInterface.events:
+                    activeComponent = EventsSubMenu;
                     break;
                 case SubMenusInterface.contact:
                     activeComponent = ContactSubMenu;

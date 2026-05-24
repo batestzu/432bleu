@@ -55,7 +55,7 @@ const menu: BaseTranslation = {
         privacySettings: {
             title: "Away mode",
             explanation:
-                'While the WorkAdventure tab in your browser is not visible. WorkAdventure switches to "away mode"',
+                'While the Bleu tab in your browser is not visible. Bleu switches to "away mode"',
             cameraToggle: 'Keep camera active in "away mode"',
             microphoneToggle: 'Keep microphone active in "away mode"',
         },
@@ -104,7 +104,7 @@ const menu: BaseTranslation = {
         gettingStarted: {
             title: "Getting started",
             description:
-                "WorkAdventure allows you to create an online space to communicate spontaneously with others. And it all starts with creating your own space. Choose from a large selection of prefabricated maps by our team.",
+                "Bleu is a virtual concert venue — explore the space, connect with others, and experience live events.",
         },
         createMap: {
             title: "Create your map",
@@ -148,6 +148,7 @@ const menu: BaseTranslation = {
         profile: "Profile",
         settings: "Settings",
         credit: "Credit",
+        events: "Events",
         globalMessages: "Global Messages",
         contact: "Contact",
         report: "Report Issues",

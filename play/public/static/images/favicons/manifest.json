@@ -1,6 +1,6 @@
 {
-    "short_name": "WA",
-    "name": "WorkAdventure",
+    "short_name": "Bleu",
+    "name": "Bleu",
     "icons": [
         {
             "src": "/static/images/favicons/apple-icon-57x57.png",
@@ -126,21 +126,18 @@
     "theme_color": "#000000",
     "shortcuts": [
       {
-        "name": "WorkAdventures",
-        "short_name": "WA",
-        "description": "WorkAdventure application, your virtual office",
+        "name": "Bleu",
+        "short_name": "Bleu",
+        "description": "Bleu — virtual concert venue",
         "url": "/",
         "icons": [{ "src": "/static/images/favicons/android-icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
       }
     ],
-    "description": "WorkAdventure application, your virtual office",
+    "description": "Bleu — virtual concert venue",
     "screenshots": [],
     "related_applications": [{
         "platform": "web",
-        "url": "https://workadventu.re"
-      }, {
-        "platform": "play",
-        "url": "https://play.workadventu.re"
+        "url": "https://432bleu.com"
     }],
     "prefer_related_applications": false
 }
