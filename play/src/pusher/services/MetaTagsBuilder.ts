@@ -13,11 +13,11 @@ import { ADMIN_API_URL } from "../enums/EnvironmentVariable";
 import { adminService } from "./AdminService";
 
 export const MetaTagsDefaultValue: RequiredMetaTagsData = {
-    title: "WorkAdventure",
+    title: "432 Bleu",
     description:
-        "Organize your online event in WorkAdventure to recreate spontaneous social interactions. Connect, collaborate and have fun with your teammates and attendees.",
-    author: "WorkAdventure team",
-    provider: "WorkAdventure",
+        "432 Bleu — a virtual concert venue. Join live performances and connect with artists and fans from anywhere on the planet.",
+    author: "432 Bleu",
+    provider: "432 Bleu",
     favIcons: [
         {
             rel: "icon",
@@ -32,8 +32,8 @@ export const MetaTagsDefaultValue: RequiredMetaTagsData = {
             type: "image/png",
         },
     ],
-    appName: "WorkAdventure",
-    shortAppName: "WA",
+    appName: "432 Bleu",
+    shortAppName: "Bleu",
     themeColor: "#1B2A41",
     cardImage: "https://workadventu.re/images/general/logo-og.png",
 };
