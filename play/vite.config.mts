@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
             cors: true,
             hmr: {
                 // workaround for development in docker
-                clientPort: 80,
+                clientPort: 443,
             },
             watch: {
                 ignored: ["./src/pusher"],
