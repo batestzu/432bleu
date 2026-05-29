@@ -1,0 +1,135 @@
+{
+  "tile_w": 192,
+  "tile_h": 192,
+  "cols": 8,
+  "sprites": {
+    "Speakers": {
+      "tile_ids": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "duration_ms": 200
+    },
+    "Subwoofer": {
+      "tile_ids": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "duration_ms": 200
+    },
+    "DJ Booth": {
+      "tile_ids": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "duration_ms": 200
+    },
+    "Synth": {
+      "tile_ids": [
+        12
+      ],
+      "duration_ms": 200
+    },
+    "Stratocaster": {
+      "tile_ids": [
+        13
+      ],
+      "duration_ms": 200
+    },
+    "Acoustic": {
+      "tile_ids": [
+        14
+      ],
+      "duration_ms": 200
+    },
+    "Rickenbacker Bass": {
+      "tile_ids": [
+        15
+      ],
+      "duration_ms": 200
+    },
+    "Drum Kit": {
+      "tile_ids": [
+        16,
+        17,
+        18,
+        19
+      ],
+      "duration_ms": 200
+    },
+    "Mic Stand": {
+      "tile_ids": [
+        20
+      ],
+      "duration_ms": 200
+    },
+    "Saxophone": {
+      "tile_ids": [
+        21
+      ],
+      "duration_ms": 200
+    },
+    "Disco Ball": {
+      "tile_ids": [
+        22,
+        23,
+        24,
+        25
+      ],
+      "duration_ms": 200
+    },
+    "Laser Fan": {
+      "tile_ids": [
+        26,
+        27,
+        28,
+        29
+      ],
+      "duration_ms": 200
+    },
+    "Neon BLEU": {
+      "tile_ids": [
+        30,
+        31,
+        32,
+        33,
+        34,
+        35
+      ],
+      "duration_ms": 200
+    },
+    "Smoke Machine": {
+      "tile_ids": [
+        36,
+        37,
+        38,
+        39
+      ],
+      "duration_ms": 200
+    },
+    "POS Terminal": {
+      "tile_ids": [
+        40
+      ],
+      "duration_ms": 200
+    },
+    "Bar Stool": {
+      "tile_ids": [
+        41
+      ],
+      "duration_ms": 200
+    },
+    "Velvet Rope": {
+      "tile_ids": [
+        42
+      ],
+      "duration_ms": 200
+    }
+  }
+}

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="240" height="240" style="background:#02060a">
+  <defs>
+    <radialGradient id="grad-b0" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#9af2e8" stop-opacity="0.95"></stop>
+      <stop offset="45%" stop-color="#00f0ff" stop-opacity="0.7"></stop>
+      <stop offset="80%" stop-color="#7a3bff" stop-opacity="0.55"></stop>
+      <stop offset="100%" stop-color="#ff2bd6" stop-opacity="0.35"></stop>
+    </radialGradient>
+    <filter id="glow-b0" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3"></feGaussianBlur>
+    </filter>
+  </defs>
+  <path fill="none" stroke="#ff2bd6" stroke-width="0.4" opacity="0.55" filter="url(#glow-b0)">
+    
+  </path>
+  <path fill="url(#grad-b0)" opacity="0.85">
+    
+  </path>
+  <path fill="none" stroke="#00f0ff" stroke-width="0.7" opacity="0.95">
+    
+  </path>
+  <g opacity="0.55" style="mix-blend-mode:screen">
+    <circle cx="100" cy="100" r="20" fill="none" stroke="#5fe6dd" stroke-width="0.3" stroke-dasharray="2 4">
+      
+    </circle>
+    <circle cx="100" cy="100" r="32" fill="none" stroke="#5fe6dd" stroke-width="0.3" stroke-dasharray="2 4">
+      
+    </circle>
+    <circle cx="100" cy="100" r="44" fill="none" stroke="#5fe6dd" stroke-width="0.3" stroke-dasharray="2 4">
+      
+    </circle>
+  </g>
+  <circle cx="100" cy="100" r="1" fill="#fff"></circle>
+</svg>

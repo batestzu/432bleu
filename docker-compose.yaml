@@ -4,7 +4,7 @@ services:
     expose:
       - "8080"
     ports:
-      - "80:80"
+      - "8080:80"
     command:
       - --api.insecure=true
       - --providers.docker
@@ -61,10 +61,10 @@ services:
       ENABLE_MAP_EDITOR: "$ENABLE_MAP_EDITOR"
       HOST: "0.0.0.0"
       NODE_ENV: development
-      ALLOWED_CORS_ORIGIN: "http://play.workadventure.localhost"
-      VITE_URL: "http://front.workadventure.localhost"
-      PUSHER_URL: http://play.workadventure.localhost
-      FRONT_URL: http://play.workadventure.localhost
+      ALLOWED_CORS_ORIGIN: "https://play.432bleu.com"
+      VITE_URL: "https://front.432bleu.com"
+      PUSHER_URL: https://play.432bleu.com
+      FRONT_URL: https://front.432bleu.com
       UPLOADER_URL: http://uploader.workadventure.localhost
       ICON_URL: http://icon.workadventure.localhost
       STUN_SERVER: "${STUN_SERVER:-}"
@@ -172,7 +172,7 @@ services:
     labels:
       - "traefik.enable=true"
 
-      - "traefik.http.routers.front.rule=Host(`front.workadventure.localhost`)"
+      - "traefik.http.routers.front.rule=Host(`front.432bleu.com`)"
       - "traefik.http.routers.front.service=front"
       - "traefik.http.services.front.loadbalancer.server.port=8080"
 
@@ -181,12 +181,12 @@ services:
       - "traefik.http.services.room-api.loadbalancer.server.port=50051"
       - "traefik.http.services.room-api.loadbalancer.server.scheme=h2c"
 
-      - "traefik.http.routers.play.rule=HostRegexp(`^.+$`)"
+      - "traefik.http.routers.play.rule=Host(`432bleu.com`) || Host(`play.432bleu.com`)"
       - "traefik.http.routers.play.priority=1"
       - "traefik.http.routers.play.service=play"
       - "traefik.http.services.play.loadbalancer.server.port=3000"
 
-      - "traefik.http.routers.play-ws.rule=HostRegexp(`^.+$`) && PathPrefix(`/ws/`)"
+      - "traefik.http.routers.play-ws.rule=Host(`432bleu.com`) || Host(`play.432bleu.com`) && PathPrefix(`/ws/`)"
       - "traefik.http.routers.play-ws.priority=2"
       - "traefik.http.routers.play-ws.service=play-ws"
       - "traefik.http.services.play-ws.loadbalancer.server.port=3001"
@@ -197,7 +197,7 @@ services:
       DEBUG_MODE: "$DEBUG_MODE"
       HOST: "0.0.0.0"
       NODE_ENV: development
-      FRONT_URL: http://play.workadventure.localhost
+      FRONT_URL: https://front.432bleu.com
       #APACHE_DOCUMENT_ROOT: dist/
       #APACHE_EXTENSIONS: headers
       #APACHE_EXTENSION_HEADERS: 1
@@ -207,7 +207,7 @@ services:
       - ./maps:/var/www/html
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.maps.rule=Host(`maps.workadventure.localhost`)"
+      - "traefik.http.routers.maps.rule=Host(`maps.432bleu.com`)"
       - "traefik.http.routers.maps.entryPoints=web,traefik"
       - "traefik.http.services.maps.loadbalancer.server.port=80"
 
@@ -287,7 +287,7 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       PATH_PREFIX: ""
       MAP_STORAGE_API_TOKEN: "FFVSGBSGBSGFB23SFGBSFG4BS"
-      PUSHER_URL: http://play.workadventure.localhost
+      PUSHER_URL: https://play.432bleu.com
       WHITELISTED_RESOURCE_URLS: ""
       SECRET_KEY: "$SECRET_KEY"
     volumes:
