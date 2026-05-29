@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backstage Pass</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0a0a0f;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+        }
+        .badge {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 24px 28px;
+            width: 100%;
+            max-width: 260px;
+            text-align: center;
+        }
+        .badge-header {
+            font-size: 0.65rem;
+            letter-spacing: 4px;
+            color: #f59e0b;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            transition: color 0.3s;
+        }
+        .badge-header.band { color: #a78bfa; }
+        .badge-header.vip  { color: #f59e0b; }
+        .badge-title {
+            font-size: 1.4rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 10px 14px;
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            text-align: center;
+            letter-spacing: 3px;
+            margin-bottom: 12px;
+            outline: none;
+        }
+        input:focus { border-color: #f59e0b; }
+        button {
+            width: 100%;
+            padding: 11px;
+            background: #f59e0b;
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: bold;
+            font-size: 0.95rem;
+            cursor: pointer;
+            letter-spacing: 1px;
+        }
+        button:hover { background: #fbbf24; }
+        #msg {
+            margin-top: 12px;
+            font-size: 0.8rem;
+            min-height: 18px;
+            color: #ef4444;
+        }
+        #msg.success { color: #34d399; }
+    </style>
+</head>
+<body>
+    <div class="badge">
+        <div class="badge-header">VIP</div>
+        <div class="badge-title">🎸 BACKSTAGE PASS</div>
+        <input type="password" id="passInput" placeholder="Enter pass code" maxlength="20" autofocus>
+        <button onclick="checkPass()">Enter Backstage</button>
+        <div id="msg"></div>
+    </div>
+
+    <script src="https://play.432bleu.com/iframe_api.js"></script>
+    <script>
+        // Pixel coords = col*32+16, row*32+16 (center of tile)
+        const ROLES = {
+            '6969': { x: 144,  y: 144, label: 'BAND', header: 'band' },  // col 4, row 4
+            '1111': { x: 1104, y: 144, label: 'VIP',  header: 'vip'  },  // col 34, row 4
+        };
+
+        document.getElementById('passInput').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') checkPass();
+        });
+
+        function checkPass() {
+            const input = document.getElementById('passInput').value.trim();
+            const msg = document.getElementById('msg');
+            const role = ROLES[input];
+            if (role) {
+                const header = document.querySelector('.badge-header');
+                header.textContent = role.label;
+                header.className = 'badge-header ' + role.header;
+                msg.className = 'success';
+                msg.textContent = '✓ Access granted. Loading backstage...';
+                setTimeout(() => {
+                    WA.player.teleport(role.x, role.y);
+                }, 800);
+            } else {
+                msg.className = '';
+                msg.textContent = '✗ Invalid pass code.';
+                document.getElementById('passInput').value = '';
+                document.getElementById('passInput').focus();
+            }
+        }
+    </script>
+</body>
+</html>
