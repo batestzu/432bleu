@@ -3,7 +3,7 @@
     import { loaderProgressStore } from "../../Stores/LoaderStore";
     import { gameManager } from "../../Phaser/Game/GameManager";
     import bgMap from "../images/map-exemple.png";
-    import defaultLoader from "../images/intothebleu.html";
+    import defaultLoader from "../images/Workadventure.gif";
 
     const logo = gameManager.currentStartedRoom.loadingLogo ?? defaultLoader;
     const sceneBg = gameManager.currentStartedRoom.backgroundSceneImage ?? bgMap;
