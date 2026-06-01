@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>432.BLEU — Into The Bleu</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#02060a;display:flex;align-items:center;justify-content:center;}
+  #wrap{width:1412px;max-width:100vw;}
+  canvas{display:block;width:100%;height:auto;}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<script>
+const W = 1412, H = 194;
+const LOOP_MS = 4200;                 // seamless loop length
+const C = {
+  ink:'#02060a', cyan:'#00f0ff', magenta:'#ff2bd6',
+  teal2:'#9af2e8', teal3:'#5fe6dd', paper:'#eafcff', violet:'#7a3bff'
+};
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+canvas.width = W * DPR; canvas.height = H * DPR;
+
+// ---- letter-spaced text helper ----
+function spacedText(ctx, str, x, y, spacing){
+  let total = 0;
+  for(const ch of str) total += ctx.measureText(ch).width + spacing;
+  total -= spacing;
+  let cx = x - total/2;
+  for(const ch of str){
+    const w = ctx.measureText(ch).width;
+    ctx.fillText(ch, cx + w/2, y);
+    cx += w + spacing;
+  }
+  return total;
+}
+
+// ---- the wordmark ("Into The" white + "Bleu" magenta), centered ----
+// drawn in device pixels; `s` = DPR scale. glow optional.
+function drawWordmark(ctx, s, glowK){
+  const cx = W*s/2, cy = H*s/2 - 6*s;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `800 ${68*s}px "Unbounded", sans-serif`;
+  const part1 = 'INTO THE ', part2 = 'BLEU';
+  const w1 = ctx.measureText(part1).width;
+  const w2 = ctx.measureText(part2).width;
+  const totalW = w1 + w2;
+  const startX = cx - totalW/2;
+
+  if(glowK > 0){
+    ctx.save();
+    ctx.shadowBlur = 26*s*glowK;
+    ctx.shadowColor = C.cyan;
+    ctx.fillStyle = C.paper;
+    ctx.textAlign = 'left';
+    ctx.fillText(part1, startX, cy);
+    ctx.shadowColor = C.magenta;
+    ctx.fillStyle = C.magenta;
+    ctx.fillText(part2, startX + w1, cy);
+    ctx.restore();
+  }
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = C.paper;
+  ctx.fillText(part1, startX, cy);
+  ctx.fillStyle = C.magenta;
+  ctx.fillText(part2, startX + w1, cy);
+
+  // caption
+  ctx.font = `500 ${12.5*s}px "JetBrains Mono", monospace`;
+  ctx.fillStyle = 'rgba(95,230,221,0.72)';
+  spacedText(ctx, 'FREQUENCY · 432.000 Hz · MEMBERS ONLY', cx, cy + 50*s, 2.4*s);
+}
+
+// ---- full scene (bg + rings + sweep + wordmark) ----
+function drawScene(ctx, t, s){
+  const cx = W*s/2, cy = H*s/2;
+
+  // background
+  const bg = ctx.createRadialGradient(cx, H*s*0.34, 0, cx, H*s*0.34, W*s*0.62);
+  bg.addColorStop(0, '#08283a');
+  bg.addColorStop(0.5, '#04121d');
+  bg.addColorStop(1, '#02060a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W*s,H*s);
+
+  // concentric resonance rings rippling outward (seamless)
+  const N = 7, maxR = W*s*0.62;
+  ctx.lineWidth = 1.4*s;
+  for(let i=0;i<N;i++){
+    const phase = ((t + i/N) % 1);
+    const r = 24*s + phase*maxR;
+    const a = Math.sin(phase*Math.PI) * 0.22;
+    if(a<=0) continue;
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(0,240,255,${a})`;
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  // a couple magenta rings, offset center, for depth
+  for(let i=0;i<2;i++){
+    const phase = ((t + i/2 + 0.25) % 1);
+    const r = 30*s + phase*maxR*0.8;
+    const a = Math.sin(phase*Math.PI) * 0.10;
+    if(a<=0) continue;
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(255,43,214,${a})`;
+    ctx.arc(W*s*0.78, cy, r, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  // light sweep (off-screen at loop boundaries → seamless)
+  const sweepX = (-0.35 + t*1.7) * W*s;
+  const bandW = W*s*0.5;
+  const grad = ctx.createLinearGradient(sweepX-bandW/2, 0, sweepX+bandW/2, 0);
+  grad.addColorStop(0, 'rgba(0,240,255,0)');
+  grad.addColorStop(0.5, 'rgba(120,245,255,0.07)');
+  grad.addColorStop(1, 'rgba(0,240,255,0)');
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = grad;
+  ctx.fillRect(sweepX-bandW/2, 0, bandW, H*s);
+  ctx.restore();
+
+  // scanlines
+  ctx.save();
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  for(let y=0; y<H*s; y+=3*s) ctx.fillRect(0, y, W*s, 1*s);
+  ctx.restore();
+
+  // wordmark with breathing glow
+  const glowK = 0.7 + 0.35*Math.sin(t*Math.PI*2);
+  drawWordmark(ctx, s, glowK);
+
+  // vignette
+  const vg = ctx.createLinearGradient(0,0,W*s,0);
+  vg.addColorStop(0,'rgba(2,6,10,0.55)');
+  vg.addColorStop(0.12,'rgba(2,6,10,0)');
+  vg.addColorStop(0.88,'rgba(2,6,10,0)');
+  vg.addColorStop(1,'rgba(2,6,10,0.55)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,W*s,H*s);
+}
+
+// ---- live loop ----
+let started = false;
+function frame(now){
+  const t = (now % LOOP_MS) / LOOP_MS;
+  drawScene(ctx, t, DPR);
+  requestAnimationFrame(frame);
+}
+
+// export hook: flat text layer (no glow/bg), transparent, 1x — for GIF compositing
+window.exportTextLayer = function(){
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const o = off.getContext('2d');
+  drawWordmark(o, 1, 0);   // no glow, transparent bg
+  return off.toDataURL('image/png');
+};
+window.__ready = false;
+
+document.fonts.load('800 68px "Unbounded"').then(()=>
+  document.fonts.load('500 13px "JetBrains Mono"')).then(()=>{
+  document.fonts.ready.then(()=>{
+    window.__ready = true;
+    if(!started){ started = true; requestAnimationFrame(frame); }
+  });
+});
+// fallback start
+setTimeout(()=>{ if(!started){ started = true; requestAnimationFrame(frame); } }, 800);
+</script>
+</body>
+</html>
