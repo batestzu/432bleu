@@ -31,7 +31,6 @@
     import LoaderScene from "./Loader/LoaderScene.svelte";
     import EnableCameraScene from "./EnableCamera/EnableCameraScene.svelte";
     import bgMap from "./images/map-exemple.png";
-    import defaultLoader from "./images/Workadventure.gif";
     import GlobalCommunicationModal from "./Modal/GlobalCommunicationModal.svelte";
     import Calendar from "./Calendar/Calendar.svelte";
     import TodoList from "./TodoList/TodoList.svelte";
@@ -53,7 +52,6 @@
 
 <!-- Preload image loader TODO HUGO : Better way ? -->
 <link rel="preload" as="image" href={bgMap} />
-<link rel="preload" as="image" href={defaultLoader} />
 
 {#if $loaderVisibleStore}
     <div class="bg-contrast">
