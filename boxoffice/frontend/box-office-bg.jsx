@@ -63,9 +63,44 @@ function Atmosphere({ accent, intensity = 0.7 }) {
 
 // HUD corner brackets + persistent status rails.
 function Hud({ accent }) {
+  const [display, setDisplay] = React.useState('');
+  const [live, setLive] = React.useState(false);
+
+  React.useEffect(() => {
+    const next = SHOWS
+      .filter(s => s.status !== 'sold-out')
+      .map(s => ({ ...s, _d: new Date(s.dateISO) }))
+      .filter(s => s._d > new Date())
+      .sort((a, b) => a._d - b._d)[0];
+
+    if (!next) { setDisplay('NO UPCOMING SHOWS'); return; }
+
+    function tick() {
+      const diff = next._d - new Date();
+      if (diff <= 0) {
+        setLive(true);
+        setDisplay(`DOORS @ ${next.timeLabel}`);
+        return;
+      }
+      setLive(false);
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      if (d > 0) {
+        setDisplay(`${next.artist} · ${d}D ${String(h).padStart(2,'0')}H ${String(m).padStart(2,'0')}M`);
+      } else {
+        setDisplay(`${next.artist} · ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+      }
+    }
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <>
-      {/* top corner brackets only — bottom is a docked status bar */}
       {[[0, 0], [1, 0]].map(([x, y], i) => (
         <div key={i} style={{
           position: 'fixed', [x ? 'right' : 'left']: 16, top: 16,
@@ -74,7 +109,6 @@ function Hud({ accent }) {
           borderTop: `1px solid ${accent}`,
         }} />
       ))}
-      {/* docked status bar */}
       <div style={{
         position: 'fixed', left: 0, right: 0, bottom: 0, height: 38, zIndex: 60,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -84,8 +118,9 @@ function Hud({ accent }) {
         color: 'rgba(95,230,221,0.6)',
       }}>
         <span>432.BLEU · BOX OFFICE</span>
-        <span style={{ display: 'none' }} className="bo-mid-status">SECTOR 11</span>
-        <span style={{ color: BLEU.magenta }}>● LIVE · DOORS @ 23:00</span>
+        <span style={{ color: live ? BLEU.magenta : 'rgba(95,230,221,0.8)' }}>
+          {live ? `● LIVE · ${display}` : `▷ NEXT · ${display}`}
+        </span>
       </div>
     </>
   );
