@@ -1,6 +1,25 @@
 // 432 Bleu — Box Office · main app
+//
+// OPTIMIZATION NOTES (future):
+// - Replace Babel CDN + runtime JSX with a Vite build — removes ~1MB of babel.min.js overhead
+// - Replace hardcoded SHOWS with GET /api/events so the calendar reflects real DB data
+// - Add og:image + og:description meta tags to index.html for social sharing previews
+// - Lazy-load TicketDrawer (never needed on initial render)
+// - Add skeleton loaders while events fetch
 
 const { useState: uS, useEffect: uE } = React;
+
+function addToCalendar(show) {
+  const start = new Date(show.dateISO);
+  const end = new Date(start.getTime() + 3 * 60 * 60 * 1000);
+  const fmt = (d) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    '&text=' + encodeURIComponent('432.BLEU — ' + show.artist) +
+    '&dates=' + fmt(start) + '/' + fmt(end) +
+    '&details=' + encodeURIComponent(show.tagline + '\n\nhttps://boxoffice.432bleu.com') +
+    '&location=' + encodeURIComponent('432.BLEU · ' + show.room);
+  window.open(url, '_blank');
+}
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "#00f0ff",
@@ -169,7 +188,7 @@ function Hero({ show, accent, mobile, layout, onGet }) {
       fontSize: 14, letterSpacing: '0.12em', boxShadow: `0 0 36px ${accent}66` }}>
         GET TICKETS
       </button>
-      <button style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.25)',
+      <button onClick={() => addToCalendar(show)} style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.25)',
       cursor: 'pointer', padding: '16px 26px', fontFamily: '"JetBrains Mono", monospace',
       fontSize: 12, letterSpacing: '0.14em' }}>
         ADD TO CALENDAR
