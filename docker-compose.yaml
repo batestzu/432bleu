@@ -31,38 +31,17 @@ services:
           - "matrix.workadventure.localhost"
           - "pusher.workadventure.localhost"
   play:
-    image: thecodingmachine/nodejs:v2-20-bullseye
-    command: npm run dev
-    # Uncomment to run the production build in dev (along STARTUP_COMMAND_4 and NODE_OPTIONS)
-    #command: npm run start
-    working_dir: /usr/src/app/play
-    volumes:
-      - .:/usr/src/app
-    tmpfs: /tmp
-    ports:
-      - "9231:9229"
-      - "9235:9235"
+    build:
+      context: .
+      dockerfile: play/Dockerfile
     environment:
-      # On startup, we ask the messages container to regenerate the files.
-      # Note: we need to use this "messages" container because of ARM64 processors that are not supported with protoc (used in "messages" container)
-      STARTUP_COMMAND_1: ../wait-proto.sh
-      STARTUP_COMMAND_2: ../npm-install.sh
-      STARTUP_COMMAND_3: npm run typesafe-i18n
-      # Uncomment to run the production build in dev
-      #STARTUP_COMMAND_4: npm run build
-      #STARTUP_COMMAND_5: npm run build-iframe-api
-      #NODE_OPTIONS: --max-old-space-size=16384
-      DEBUG: "socket,space"
-      DEBUG_COLORS: "true"
-      DEBUG_ERROR_MESSAGES: "true"
       DEBUG_MODE: "$DEBUG_MODE"
       JITSI_URL: $JITSI_URL
       JITSI_PRIVATE_MODE: "$JITSI_PRIVATE_MODE"
       ENABLE_MAP_EDITOR: "$ENABLE_MAP_EDITOR"
       HOST: "0.0.0.0"
-      NODE_ENV: development
+      NODE_ENV: production
       ALLOWED_CORS_ORIGIN: "https://play.432bleu.com"
-      VITE_URL: "https://front.432bleu.com"
       PUSHER_URL: https://play.432bleu.com
       FRONT_URL: https://front.432bleu.com
       UPLOADER_URL: http://uploader.workadventure.localhost
@@ -174,7 +153,7 @@ services:
 
       - "traefik.http.routers.front.rule=Host(`front.432bleu.com`)"
       - "traefik.http.routers.front.service=front"
-      - "traefik.http.services.front.loadbalancer.server.port=8080"
+      - "traefik.http.services.front.loadbalancer.server.port=3000"
 
       - "traefik.http.routers.room-api.rule=Host(`room-api.workadventure.localhost`)"
       - "traefik.http.routers.room-api.service=room-api"
