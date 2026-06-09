@@ -3,8 +3,11 @@ services:
     image: livekit/livekit-server:v1.8.4
     command: --config /etc/livekit/config.yaml
     ports:
-      - "7880:7880" # HTTP API / WS signaling (proxied via Caddy as livekit.432bleu.com)
-      - "7882:7882/udp" # WebRTC media (RTC UDP) — published directly, bypasses Traefik
+      - "7880:7880"     # HTTP API / WS signaling (proxied via Caddy as livekit.432bleu.com)
+      - "7882:7882/udp" # WebRTC media RTC UDP — bypasses Traefik
+      - "3478:3478/udp" # TURN plaintext UDP
+      - "5349:5349/tcp" # TURNS TLS (TURN over TLS)
+      - "5349:5349/udp" # TURNS DTLS
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.livekit.rule=Host(`livekit.432bleu.com`)"
@@ -12,6 +15,7 @@ services:
       - "traefik.http.services.livekit.loadbalancer.server.port=7880"
     volumes:
       - ./livekit-config.yaml:/etc/livekit/config.yaml
+      - /var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.432bleu.com:/etc/caddy-certs:ro
     depends_on:
       redis:
         condition: service_started
