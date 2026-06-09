@@ -10,6 +10,10 @@ services:
       redis:
         condition: service_started
 
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
   back:
     environment:
       LIVEKIT_HOST: "$LIVEKIT_HOST"

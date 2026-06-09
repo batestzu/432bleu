@@ -16,7 +16,7 @@ turn:
 #        - mime: audio/opus
 #        - mime: video/h264
 redis:
-    address: redis:6379
+    address: 127.0.0.1:6379
     username: ""
     password: ""
     db: 2
