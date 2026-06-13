@@ -62,12 +62,12 @@ function Atmosphere({ accent, intensity = 0.7 }) {
 }
 
 // HUD corner brackets + persistent status rails.
-function Hud({ accent }) {
+function Hud({ accent, shows }) {
   const [display, setDisplay] = React.useState('');
   const [live, setLive] = React.useState(false);
 
   React.useEffect(() => {
-    const next = SHOWS
+    const next = shows
       .filter(s => s.status !== 'sold-out')
       .map(s => ({ ...s, _d: new Date(s.dateISO) }))
       .filter(s => s._d > new Date())
@@ -97,7 +97,7 @@ function Hud({ accent }) {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [shows]);
 
   return (
     <>

@@ -2,10 +2,8 @@
 //
 // OPTIMIZATION NOTES (future):
 // - Replace Babel CDN + runtime JSX with a Vite build — removes ~1MB of babel.min.js overhead
-// - Replace hardcoded SHOWS with GET /api/events so the calendar reflects real DB data
 // - Add og:image + og:description meta tags to index.html for social sharing previews
 // - Lazy-load TicketDrawer (never needed on initial render)
-// - Add skeleton loaders while events fetch
 
 const { useState: uS, useEffect: uE } = React;
 
@@ -41,12 +39,17 @@ function BoxOffice() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [active, setActive] = uS(null); // selected show for drawer
   const [filter, setFilter] = uS('all');
+  const [shows, setShows] = uS([]);
+  const [loading, setLoading] = uS(true);
   const vw = useViewport();
   const mobile = vw < 760;
   const accent = t.accent;
-  const headline = SHOWS.find((s) => s.headline);
 
-  const rest = SHOWS.filter((s) => !s.headline);
+  uE(() => {
+    fetchShows().then(setShows).finally(() => setLoading(false));
+  }, []);
+
+  const [headline, ...rest] = shows;
   const filtered = rest.filter((s) => {
     if (filter === 'all') return true;
     if (filter === 'available') return s.status !== 'sold-out';
@@ -57,15 +60,23 @@ function BoxOffice() {
     <div style={{ position: 'relative', minHeight: '100vh', color: '#fff',
       fontFamily: '"Space Grotesk", system-ui, sans-serif', overflowX: 'hidden' }}>
       <Atmosphere accent={accent} intensity={t.intensity} />
-      <Hud accent={accent} />
+      <Hud accent={accent} shows={shows} />
 
       <div style={{ position: 'relative', zIndex: 10,
         maxWidth: 1180, margin: '0 auto', padding: mobile ? '0 18px 90px' : '0 40px 100px' }}>
         <Nav accent={accent} mobile={mobile} />
-        <Hero show={headline} accent={accent} mobile={mobile}
-        layout={t.heroLayout} onGet={() => setActive(headline)} />
-        <Calendar shows={filtered} accent={accent} mobile={mobile}
-        filter={filter} setFilter={setFilter} onPick={setActive} />
+        {loading ? (
+          <LoadingState />
+        ) : headline ? (
+          <>
+            <Hero show={headline} accent={accent} mobile={mobile}
+            layout={t.heroLayout} onGet={() => setActive(headline)} />
+            <Calendar shows={filtered} accent={accent} mobile={mobile}
+            filter={filter} setFilter={setFilter} onPick={setActive} />
+          </>
+        ) : (
+          <EmptyState accent={accent} />
+        )}
         <FooterBlock accent={accent} mobile={mobile} />
       </div>
 
@@ -84,6 +95,31 @@ function BoxOffice() {
         options={['split', 'centered']}
         onChange={(v) => setTweak('heroLayout', v)} />
       </TweaksPanel>
+    </div>);
+
+}
+
+/* ───────────────────────── LOADING / EMPTY ───────────────────────── */
+function LoadingState() {
+  return (
+    <div style={{ padding: '120px 0', textAlign: 'center', fontFamily: '"JetBrains Mono", monospace',
+      fontSize: 12, letterSpacing: '0.3em', color: 'rgba(154,242,232,0.5)' }}>
+      TUNING IN…
+    </div>);
+
+}
+
+function EmptyState({ accent }) {
+  return (
+    <div style={{ padding: '120px 0', textAlign: 'center' }}>
+      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.3em',
+        color: accent, marginBottom: 12 }}>NO SIGNAL</div>
+      <h2 style={{ fontFamily: '"Unbounded", sans-serif', fontWeight: 700, fontSize: 32,
+        margin: 0, letterSpacing: '-0.02em' }}>No upcoming shows</h2>
+      <p style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.06em',
+        color: 'rgba(154,242,232,0.55)', marginTop: 14 }}>
+        Check back soon — the season is being tuned.
+      </p>
     </div>);
 
 }
@@ -172,8 +208,7 @@ function Hero({ show, accent, mobile, layout, onGet }) {
     <div key={tr.id} style={{ border: '1px solid rgba(95,230,221,0.22)', padding: '8px 14px',
       fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.08em' }}>
           <span style={{ color: '#fff' }}>{tr.name}</span>
-          <span style={{ color: accent, marginLeft: 8 }}>
-            {tr.price === 'PWYW' ? 'PWYW' : '$' + tr.price}</span>
+          <span style={{ color: accent, marginLeft: 8 }}>{formatPrice(tr)}</span>
         </div>
     )}
     </div>;
@@ -244,7 +279,7 @@ function Hero({ show, accent, mobile, layout, onGet }) {
 
 function StatusPill({ status, accent }) {
   const meta = STATUS_META[status];
-  const colorMap = { cyan: accent, lime: BLEU.lime, violet: BLEU.violet, mute: 'rgba(255,255,255,0.4)' };
+  const colorMap = { cyan: accent, lime: BLEU.lime, mute: 'rgba(255,255,255,0.4)' };
   const c = colorMap[meta.key];
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -259,7 +294,7 @@ function StatusPill({ status, accent }) {
 
 /* ───────────────────────── CALENDAR ───────────────────────── */
 function Calendar({ shows, accent, mobile, filter, setFilter, onPick }) {
-  const filters = [['all', 'ALL'], ['available', 'AVAILABLE'], ['members', 'MEMBERS'], ['sold-out', 'SOLD OUT']];
+  const filters = [['all', 'ALL'], ['available', 'AVAILABLE'], ['sold-out', 'SOLD OUT']];
   return (
     <section style={{ marginTop: mobile ? 44 : 80 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
