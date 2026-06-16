@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>432 BLEU — Get Tickets</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100vh;
+      background: linear-gradient(180deg, #061d28 0%, #03101a 60%, #02080e 100%);
+      background-attachment: fixed;
+      color: #fff;
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection { background: #5fe6dd; color: #02060a; }
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+
+    .page-wrap {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+
+    /* ── header ── */
+    .page-header {
+      margin-bottom: 36px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(95,230,221,0.16);
+    }
+
+    .page-eyebrow {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      color: #5fe6dd;
+      margin-bottom: 14px;
+    }
+
+    .page-artist {
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin-bottom: 12px;
+    }
+
+    .page-meta {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: rgba(154,242,232,0.75);
+    }
+
+    .page-desc {
+      margin-top: 10px;
+      font-size: 13px;
+      color: rgba(154,242,232,0.55);
+      font-family: "JetBrains Mono", monospace;
+      letter-spacing: 0.04em;
+      line-height: 1.6;
+    }
+
+    /* ── section labels ── */
+    .section-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      color: #5fe6dd;
+      margin-bottom: 14px;
+    }
+
+    /* ── tiers ── */
+    .tiers-wrap { margin-bottom: 28px; }
+
+    .tier-card {
+      padding: 16px 18px;
+      margin: 10px 0;
+      cursor: pointer;
+      border: 1px solid rgba(95,230,221,0.16);
+      background: rgba(255,255,255,0.02);
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .tier-card:hover { border-color: rgba(95,230,221,0.4); }
+    .tier-card.selected { border-color: #5fe6dd; background: rgba(95,230,221,0.08); }
+    .tier-card.sold-out { opacity: 0.4; cursor: not-allowed; }
+
+    .tier-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .tier-name {
+      font-family: "Unbounded", sans-serif;
+      font-weight: 500;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+      color: #fff;
+      transition: color 0.2s;
+    }
+
+    .tier-card.selected .tier-name { color: #5fe6dd; }
+
+    .tier-price {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      color: rgba(255,255,255,0.85);
+      white-space: nowrap;
+    }
+
+    .tier-desc {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: rgba(154,242,232,0.55);
+      margin-top: 6px;
+    }
+
+    .tier-capacity {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.35);
+      margin-top: 6px;
+    }
+
+    /* pwyc */
+    .pwyc-input { margin-top: 14px; display: none; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .pwyc-input.visible { display: flex; }
+
+    .pwyc-input label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: rgba(154,242,232,0.7);
+    }
+
+    .pwyc-field {
+      display: flex;
+      align-items: center;
+      border: 1px solid rgba(95,230,221,0.35);
+      padding-left: 10px;
+    }
+
+    .pwyc-field span {
+      color: #5fe6dd;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .pwyc-field input {
+      width: 70px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 15px;
+      padding: 8px 8px;
+    }
+
+    .pwyc-hint {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      color: rgba(255,255,255,0.35);
+    }
+
+    /* ── contact form ── */
+    .form-wrap { margin-bottom: 28px; }
+
+    .form-row { display: flex; gap: 14px; flex-wrap: wrap; }
+
+    .form-group { flex: 1; min-width: 150px; }
+
+    .form-group label {
+      display: block;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: rgba(154,242,232,0.6);
+      margin-bottom: 8px;
+    }
+
+    .form-group input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(95,230,221,0.2);
+      color: #fff;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 14px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus { border-color: rgba(95,230,221,0.6); }
+    .form-group input::placeholder { color: rgba(255,255,255,0.25); }
+
+    /* ── submit ── */
+    .submit-btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      cursor: pointer;
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.14em;
+      background: #5fe6dd;
+      color: #02060a;
+      box-shadow: 0 0 30px rgba(95,230,221,0.4);
+      transition: all 0.2s ease;
+    }
+
+    .submit-btn:disabled {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.35);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* ── misc ── */
+    .sold-out-banner {
+      padding: 14px 16px;
+      border: 1px solid rgba(255,255,255,0.14);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 20px;
+    }
+
+    .error-msg {
+      color: #ff6b6b;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      margin-top: 14px;
+      display: none;
+      text-align: center;
+    }
+
+    .error-msg.visible { display: block; }
+
+    .fine-print {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: rgba(154,242,232,0.45);
+      line-height: 1.7;
+      margin-top: 28px;
+    }
+
+    .loading {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      color: rgba(154,242,232,0.5);
+      padding: 60px 0;
+      text-align: center;
+    }
+
+    @media (max-width: 500px) {
+      .page-wrap { padding: 32px 16px 48px; }
+      .form-row { flex-direction: column; }
+      .page-artist { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <p class="loading" id="loading">LOADING · · ·</p>
+
+    <div id="content" style="display:none;">
+      <div class="page-header">
+        <div class="page-eyebrow">SELECT ADMISSION</div>
+        <div class="page-artist" id="event-name"></div>
+        <div class="page-meta" id="event-meta"></div>
+        <div class="page-desc" id="event-desc"></div>
+      </div>
+
+      <div class="form-wrap">
+        <div class="section-label">YOUR INFO</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>NAME</label>
+            <input type="text" id="name" placeholder="Your name" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label>EMAIL</label>
+            <input type="email" id="email" placeholder="ticket@example.com" autocomplete="email">
+          </div>
+        </div>
+      </div>
+
+      <div class="tiers-wrap">
+        <div class="section-label">CHOOSE YOUR TICKET</div>
+        <div id="tiers"></div>
+      </div>
+
+      <button class="submit-btn" id="submit-btn" onclick="submit()" disabled>GET TICKETS</button>
+      <p class="error-msg" id="error-msg"></p>
+
+      <p class="fine-print">All entries 21+. Your ticket code will be emailed after checkout.</p>
+    </div>
+  </div>
+
+  <script>
+    const eventId = parseInt(window.location.pathname.split('/').pop());
+    let selectedTier = null;
+    let eventData = null;
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function load() {
+      try {
+        const res = await fetch(`/api/events/${eventId}`);
+        if (!res.ok) { window.location.href = '/'; return; }
+        eventData = await res.json();
+
+        const d = new Date(eventData.date);
+        const dateStr = d.toLocaleDateString('en-US', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }).toUpperCase();
+
+        document.getElementById('event-name').textContent = eventData.name;
+        document.getElementById('event-meta').innerHTML = `<span>${dateStr}</span>`;
+        if (eventData.description) {
+          document.getElementById('event-desc').textContent = eventData.description;
+        }
+
+        const allSoldOut = eventData.tiers.length > 0 && eventData.tiers.every(t => !t.available);
+
+        document.getElementById('tiers').innerHTML =
+          (allSoldOut ? `<div class="sold-out-banner">ALL TICKETS FOR THIS SHOW ARE CURRENTLY SOLD OUT</div>` : '') +
+          eventData.tiers.map(t => {
+            const priceStr = t.price_cents === 0
+              ? (t.name === 'PWYC' ? 'Pay What You Can' : 'Free')
+              : `$${(t.price_cents / 100).toFixed(2)}`;
+            const capStr = t.capacity
+              ? `${Math.max(0, t.capacity - t.sold)} remaining`
+              : '';
+            const soldOut = !t.available;
+
+            return `
+              <div class="tier-card ${soldOut ? 'sold-out' : ''}" id="tier-${t.id}"
+                   onclick="${soldOut ? '' : `selectTier(${t.id})`}">
+                <div class="tier-header">
+                  <span class="tier-name">${esc(t.label)}${soldOut ? ' — SOLD OUT' : ''}</span>
+                  <span class="tier-price">${priceStr}</span>
+                </div>
+                ${t.description ? `<div class="tier-desc">${esc(t.description)}</div>` : ''}
+                ${capStr ? `<div class="tier-capacity">${capStr}</div>` : ''}
+                ${t.name === 'PWYC' ? `
+                  <div class="pwyc-input" id="pwyc-input">
+                    <label>YOUR AMOUNT</label>
+                    <div class="pwyc-field">
+                      <span>$</span>
+                      <input type="number" id="pwyc-amount" min="0" step="1" value="0"
+                             placeholder="0" oninput="validatePwyc(this)">
+                    </div>
+                    <span class="pwyc-hint">$0 OK · tip the room</span>
+                  </div>` : ''}
+              </div>
+            `;
+          }).join('');
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+
+        // update button state on name/email input
+        document.getElementById('name').addEventListener('input', updateBtn);
+        document.getElementById('email').addEventListener('input', updateBtn);
+      } catch {
+        document.getElementById('loading').textContent = 'COULD NOT LOAD EVENT.';
+      }
+    }
+
+    function updateBtn() {
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = !(selectedTier && name && email.includes('@'));
+    }
+
+    function selectTier(tierId) {
+      selectedTier = eventData.tiers.find(t => t.id === tierId);
+      document.querySelectorAll('.tier-card').forEach(el => el.classList.remove('selected'));
+      document.getElementById(`tier-${tierId}`).classList.add('selected');
+
+      const pwycInput = document.getElementById('pwyc-input');
+      if (pwycInput) {
+        pwycInput.classList.toggle('visible', selectedTier.name === 'PWYC');
+      }
+      updateBtn();
+    }
+
+    function validatePwyc(input) {
+      const val = parseFloat(input.value);
+      if (val > 0 && val < 1) input.value = 1;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function clearError() {
+      document.getElementById('error-msg').classList.remove('visible');
+    }
+
+    async function submit() {
+      clearError();
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      if (!selectedTier) return showError('Please select a ticket type.');
+      if (!name) return showError('Please enter your name.');
+      if (!email || !email.includes('@')) return showError('Please enter a valid email.');
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'PROCESSING…';
+
+      try {
+        if (selectedTier.name === 'GA') {
+          await claimFree('GA');
+        } else if (selectedTier.name === 'PWYC') {
+          const amount = parseFloat(document.getElementById('pwyc-amount').value) || 0;
+          if (amount === 0) {
+            await claimFree('PWYC');
+          } else {
+            await startCheckout(Math.round(amount * 100));
+          }
+        } else {
+          await startCheckout(selectedTier.price_cents);
+        }
+      } catch {
+        showError('Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'GET TICKETS';
+        updateBtn();
+      }
+    }
+
+    async function claimFree(tierName) {
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const tier = eventData.tiers.find(t => t.name === tierName);
+
+      const res = await fetch('/api/tickets/free', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, tier_id: tier.id, email, name }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail);
+      }
+
+      window.location.href = '/success?free=1';
+    }
+
+    async function startCheckout(amountCents) {
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          tier_id: selectedTier.id,
+          email, name,
+          amount_cents: amountCents,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail);
+      }
+
+      const { checkout_url } = await res.json();
+      window.location.href = checkout_url;
+    }
+
+    load();
+  </script>
+</body>
+</html>

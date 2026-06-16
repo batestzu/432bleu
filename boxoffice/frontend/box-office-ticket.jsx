@@ -113,6 +113,9 @@ function TicketDrawer({ show, accent, onClose }) {
                 </div>
               )}
 
+              <ContactForm accent={accent} name={name} email={email}
+                onName={setName} onEmail={setEmail} />
+
               {show.tiers.map(t => (
                 <TierRow key={t.id} tier={t} accent={accent}
                   selected={t.id === selectedTierId}
@@ -120,11 +123,6 @@ function TicketDrawer({ show, accent, onClose }) {
                   pwycAmount={pwycAmount}
                   onPwycAmount={setPwycAmount} />
               ))}
-
-              {selectedTier && (
-                <ContactForm accent={accent} name={name} email={email}
-                  onName={setName} onEmail={setEmail} />
-              )}
 
               <p style={{ fontSize: 12, lineHeight: 1.7, color: 'rgba(154,242,232,0.5)',
                 fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.04em', marginTop: 22 }}>
