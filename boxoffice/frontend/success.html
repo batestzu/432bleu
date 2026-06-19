@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>432 BLEU — Ticket Confirmed</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="/">432 BLEU</a>
+    <span class="logo-sub">BOX OFFICE</span>
+  </header>
+
+  <div class="container">
+    <div class="success-box">
+      <div class="check">✓</div>
+      <h2>You're in.</h2>
+      <p style="margin-top:12px;">Your ticket code is on its way to your inbox.</p>
+      <p style="margin-top:8px;">Check your email and bring the code to the door.</p>
+      <div style="margin-top:32px;">
+        <a class="btn" href="https://play.432bleu.com">Enter the Venue</a>
+      </div>
+    </div>
+    <p style="text-align:center;margin-top:16px;">
+      <a href="/" style="color:var(--muted);font-size:12px;">← Back to shows</a>
+    </p>
+  </div>
+
+  <script>
+    // Paid checkout: poll until the webhook-created ticket exists and sets the
+    // venue access cookie. Free claims (?free=1) already got the cookie from
+    // /api/tickets/free, so skip polling.
+    const sessionId = new URLSearchParams(window.location.search).get('session_id');
+    if (sessionId) {
+      let tries = 0;
+      const poll = async () => {
+        tries++;
+        try {
+          const res = await fetch(`/api/tickets/by-session?session_id=${encodeURIComponent(sessionId)}`);
+          const data = await res.json();
+          if (data.ready) return;
+        } catch {}
+        if (tries < 10) setTimeout(poll, 2000);
+      };
+      poll();
+    }
+  </script>
+</body>
+</html>

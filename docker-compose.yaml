@@ -536,7 +536,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   boxoffice:
-    build: ../boxoffice
+    build: ./boxoffice
     environment:
       DATABASE_URL: postgresql://boxoffice:boxoffice@postgres:5432/boxoffice
       PLAY_URL: https://play.432bleu.com
