@@ -1,4 +1,7 @@
 .env
+.env.*
+!.env.template
+*.bak
 .idea
 .vagrant
 Vagrantfile

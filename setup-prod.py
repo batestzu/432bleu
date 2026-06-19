@@ -16,6 +16,9 @@ dc = open(dc_path).read()
 # 1. Replace domain everywhere
 dc = dc.replace("workadventure.localhost", DOMAIN)
 
+# 1b. Ensure no service runs in dev mode
+dc = dc.replace("NODE_ENV: development", "NODE_ENV: production")
+
 # 2. Upgrade http:// external service URLs to https://
 dc = re.sub(r'http://([a-zA-Z][a-zA-Z0-9-]*)\.432bleu\.com',
             r'https://\1.432bleu.com', dc)

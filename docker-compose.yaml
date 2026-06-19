@@ -71,7 +71,7 @@ services:
       SECRET_KEY: "$SECRET_KEY"
       ADMIN_API_URL: "${ADMIN_API_URL:-}"
       ADMIN_API_TOKEN: "$ADMIN_API_TOKEN"
-      MAP_STORAGE_API_TOKEN: "FFVSGBSGBSGFB23SFGBSFG4BS"
+      MAP_STORAGE_API_TOKEN: "${MAP_STORAGE_API_TOKEN}"
       API_URL: back:50051
       DISABLE_ANONYMOUS: $DISABLE_ANONYMOUS
       #Map editor
@@ -138,7 +138,7 @@ services:
       MATRIX_API_URI: http://synapse:8008/
       MATRIX_PUBLIC_URI: http://matrix.workadventure.localhost
       MATRIX_ADMIN_USER: admin
-      MATRIX_ADMIN_PASSWORD: MySecretPassword
+      MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
       MATRIX_DOMAIN: matrix.workadventure.localhost
       # oEmbed providers
       EMBEDLY_KEY: "$EMBEDLY_KEY"
@@ -176,7 +176,7 @@ services:
     environment:
       DEBUG_MODE: "$DEBUG_MODE"
       HOST: "0.0.0.0"
-      NODE_ENV: development
+      NODE_ENV: production
       FRONT_URL: https://front.432bleu.com
       #APACHE_DOCUMENT_ROOT: dist/
       #APACHE_EXTENSIONS: headers
@@ -219,7 +219,7 @@ services:
       BBB_SECRET: $BBB_SECRET
       MAX_PER_GROUP: "$MAX_PER_GROUP"
       REDIS_HOST: redis
-      NODE_ENV: development
+      NODE_ENV: production
       STORE_VARIABLES_FOR_LOCAL_MAPS: "true"
       PROMETHEUS_AUTHORIZATION_TOKEN: "$PROMETHEUS_AUTHORIZATION_TOKEN"
       MAP_STORAGE_URL: "map-storage:50053"
@@ -253,20 +253,20 @@ services:
       #DEBUG: "*"
       STARTUP_COMMAND_1: ../wait-proto.sh
       STARTUP_COMMAND_2: ../npm-install.sh
-      NODE_ENV: development
+      NODE_ENV: production
       PROMETHEUS_AUTHORIZATION_TOKEN: "$PROMETHEUS_AUTHORIZATION_TOKEN"
       ENABLE_BASIC_AUTHENTICATION: "true"
-      AUTHENTICATION_USER: "john.doe"
-      AUTHENTICATION_PASSWORD: "password"
+      AUTHENTICATION_USER: "${MAP_STORAGE_AUTH_USER}"
+      AUTHENTICATION_PASSWORD: "${MAP_STORAGE_AUTH_PASSWORD}"
       ENABLE_BEARER_AUTHENTICATION: "true"
-      AUTHENTICATION_TOKEN: "123"
+      AUTHENTICATION_TOKEN: "${MAP_STORAGE_AUTH_TOKEN}"
       API_URL: back:50051
       # Sentry integration
       SENTRY_DSN: ${SENTRY_DSN_MAPSTORAGE:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       PATH_PREFIX: ""
-      MAP_STORAGE_API_TOKEN: "FFVSGBSGBSGFB23SFGBSFG4BS"
+      MAP_STORAGE_API_TOKEN: "${MAP_STORAGE_API_TOKEN}"
       PUSHER_URL: https://play.432bleu.com
       WHITELISTED_RESOURCE_URLS: ""
       SECRET_KEY: "$SECRET_KEY"
@@ -496,7 +496,7 @@ services:
       SYNAPSE_SERVER_NAME: "matrix.workadventure.localhost"
       SYNAPSE_REPORT_STATS: "yes"
       MATRIX_ADMIN_USER: admin
-      MATRIX_ADMIN_PASSWORD: MySecretPassword
+      MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
       JWT_SECRET: "$SECRET_KEY"
 
 #  coturn:

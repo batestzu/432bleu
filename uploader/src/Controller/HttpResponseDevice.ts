@@ -18,11 +18,11 @@ export class HttpResponseDevice implements TargetDevice {
         }
 
         this.response.status(200);
+        this.response.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(this.id)}"`);
+        this.response.setHeader("X-Content-Type-Options", "nosniff");
 
         const mimeType = mimeTypeManager.getMimeTypeByFileName(this.id);
-        if (mimeType !== false) {
-            this.response.type(mimeType);
-        }
+        this.response.type(mimeType !== false ? mimeType : "application/octet-stream");
 
         this.response.send(buffer);
     }
