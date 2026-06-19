@@ -115,6 +115,8 @@ const menu: DeepPartial<Translation["menu"]> = {
     about: {
         mapInfo: "Informazioni sulla mappa",
         mapLink: "link a questa mappa",
+        sourceCode: "Codice sorgente",
+        sourceCodeDescription: "Questa piattaforma è basata su software open-source. Visualizza il codice sorgente:",
         copyrights: {
             map: {
                 title: "Copyright della mappa",
@@ -147,6 +149,7 @@ const menu: DeepPartial<Translation["menu"]> = {
         profile: "Profilo",
         settings: "Impostazioni",
         credit: "Credito",
+        events: "Eventi",
         globalMessages: "Messaggi globali",
         contact: "Contatto",
         report: "Segnala problemi",

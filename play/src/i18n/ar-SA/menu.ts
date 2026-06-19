@@ -127,6 +127,8 @@ const menu: DeepPartial<Translation["menu"]> = {
     about: {
         mapInfo: "معلومات عن هذه الخريطة", // Information about this map
         mapLink: "رابط الخريطة", // Map link
+        sourceCode: "الكود المصدري",
+        sourceCodeDescription: "هذه المنصة مبنية على برمجيات مفتوحة المصدر. عرض الكود المصدري:",
         copyrights: {
             map: {
                 title: "حقوق الطبع والنشر للخريطة", // Map copyright
@@ -146,6 +148,7 @@ const menu: DeepPartial<Translation["menu"]> = {
         profile: "الملف الشخصي", // Profile
         settings: "الإعدادات", // Settings
         credit: "حول هذه الخريطة", // About this map
+        events: "الفعاليات",
         globalMessages: "رسائل عالمية", // Global messages
         contact: "اتصال", // Contact
         report: "الإبلاغ عن خطأ", // Report an error

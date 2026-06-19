@@ -114,6 +114,8 @@ const menu: DeepPartial<Translation["menu"]> = {
     about: {
         mapInfo: "informacije wo tutej karće",
         mapLink: "link ke karće",
+        sourceCode: "Žórłowy kod",
+        sourceCodeDescription: "Tuta platforma buchu natwarjena na wotewrjenej žórłowej softwerje. Žórłowy kod sej wobhladać:",
         copyrights: {
             map: {
                 title: "awtorske prawo karty",
@@ -146,6 +148,7 @@ const menu: DeepPartial<Translation["menu"]> = {
         profile: "profil",
         settings: "nastajenja",
         credit: "wo karće",
+        events: "Zarjadowanja",
         globalMessages: "globalne powěsće",
         contact: "kontakt",
         report: "zmylki připowědźić",

@@ -114,6 +114,8 @@ const menu: BaseTranslation = {
     about: {
         mapInfo: "Informações no mapa",
         mapLink: "link para este mapa",
+        sourceCode: "Código-fonte",
+        sourceCodeDescription: "Esta plataforma é construída com software de código aberto. Ver o código-fonte:",
         copyrights: {
             map: {
                 title: "Direitos autorais do mapa",
@@ -146,6 +148,7 @@ const menu: BaseTranslation = {
         profile: "Perfil",
         settings: "Configurações",
         credit: "Crédito",
+        events: "Eventos",
         globalMessages: "Mensagens globais",
         contact: "Contato",
         report: "Relatar problemas",

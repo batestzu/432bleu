@@ -113,6 +113,8 @@ const menu: DeepPartial<Translation["menu"]> = {
     about: {
         mapInfo: "지도 정보",
         mapLink: "이 지도의 링크",
+        sourceCode: "소스 코드",
+        sourceCodeDescription: "이 플랫폼은 오픈 소스 소프트웨어로 구축되었습니다. 소스 코드 보기:",
         copyrights: {
             map: {
                 title: "지도 저작권",
@@ -145,6 +147,7 @@ const menu: DeepPartial<Translation["menu"]> = {
         profile: "프로필",
         settings: "설정",
         credit: "크레딧",
+        events: "이벤트",
         globalMessages: "전역 메시지",
         contact: "연락처",
         report: "문제 신고",

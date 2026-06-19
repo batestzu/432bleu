@@ -114,6 +114,8 @@ const menu: DeepPartial<Translation["menu"]> = {
     about: {
         mapInfo: "Informacije wót teje kórty",
         mapLink: "Link ku kórśe",
+        sourceCode: "Žrědłowy kod",
+        sourceCodeDescription: "Tuta platforma jo natwarjona na wótewrjonej žrědłowej software. Wobglědaś žrědłowy kod:",
         copyrights: {
             map: {
                 title: "Stwóriśelske pšawa na tej kórśe",
@@ -146,6 +148,7 @@ const menu: DeepPartial<Translation["menu"]> = {
         profile: "Profil",
         settings: "Nastajenja",
         credit: "Informacije dla teje kórty",
+        events: "Zarědowanja",
         globalMessages: "Globalne powěsći",
         contact: "Kontakt",
         report: "Zmólku pśipowěźeś",

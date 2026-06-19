@@ -112,6 +112,8 @@ const menu: DeepPartial<Translation["menu"]> = {
     about: {
         mapInfo: "地图信息",
         mapLink: "地图链接",
+        sourceCode: "源代码",
+        sourceCodeDescription: "该平台基于开源软件构建。查看源代码：",
         copyrights: {
             map: {
                 title: "地图版权",
@@ -144,6 +146,7 @@ const menu: DeepPartial<Translation["menu"]> = {
         profile: "资料",
         settings: "设置",
         credit: "信用",
+        events: "活动",
         globalMessages: "全局消息",
         contact: "联系",
         report: "报告问题",
