@@ -193,7 +193,7 @@ services:
 
   back:
     image: thecodingmachine/nodejs:v2-22-bullseye
-    command: npm run dev
+    command: npm run runprod
     working_dir: /usr/src/app/back
     environment:
       #DEBUG: "*"
