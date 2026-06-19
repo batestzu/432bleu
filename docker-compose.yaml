@@ -253,7 +253,7 @@ services:
       #DEBUG: "*"
       STARTUP_COMMAND_1: ../wait-proto.sh
       STARTUP_COMMAND_2: ../npm-install.sh
-      NODE_ENV: production
+      NODE_ENV: development
       PROMETHEUS_AUTHORIZATION_TOKEN: "$PROMETHEUS_AUTHORIZATION_TOKEN"
       ENABLE_BASIC_AUTHENTICATION: "true"
       AUTHENTICATION_USER: "${MAP_STORAGE_AUTH_USER}"
