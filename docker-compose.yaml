@@ -525,3 +525,38 @@ services:
 #    network_mode: host
 #volumes:
 #  synapsedata:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: boxoffice
+      POSTGRES_PASSWORD: boxoffice
+      POSTGRES_DB: boxoffice
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  boxoffice:
+    build: ../boxoffice
+    environment:
+      DATABASE_URL: postgresql://boxoffice:boxoffice@postgres:5432/boxoffice
+      PLAY_URL: https://play.432bleu.com
+      BOXOFFICE_DOMAIN: https://boxoffice.432bleu.com
+      STRIPE_SECRET_KEY: "$STRIPE_SECRET_KEY"
+      STRIPE_WEBHOOK_SECRET: "$STRIPE_WEBHOOK_SECRET"
+      SENDGRID_API_KEY: "$SENDGRID_API_KEY"
+      FROM_EMAIL: tickets@432bleu.com
+      STAFF_TOKEN: "$STAFF_TOKEN"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.boxoffice.rule=Host(`boxoffice.432bleu.com`)"
+      - "traefik.http.routers.boxoffice.entryPoints=web"
+      - "traefik.http.routers.boxoffice.priority=100"
+      - "traefik.http.services.boxoffice.loadbalancer.server.port=8000"
+    depends_on:
+      postgres:
+        condition: service_started
+
+volumes:
+  postgres-data:
+    external: true
+    name: workadventure_postgres-data
