@@ -9,7 +9,7 @@
         next: void;
     }>();
 
-    const worldName = gameManager.getCurrentGameScene()?.room?.roomName ?? "WorkAdventure";
+    const worldName = gameManager.getCurrentGameScene()?.room?.roomName ?? "432Bleu";
 
     function handleNext() {
         dispatch("next");
