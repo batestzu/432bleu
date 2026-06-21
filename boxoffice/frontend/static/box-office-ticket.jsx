@@ -10,6 +10,7 @@ function TicketDrawer({ show, accent, onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
     setSelectedTierId(null);
@@ -19,6 +20,7 @@ function TicketDrawer({ show, accent, onClose }) {
     setSubmitting(false);
     setError('');
     setDone(false);
+    setAttempted(false);
   }, [show && show.id]);
 
   // lock scroll while open
@@ -35,8 +37,11 @@ function TicketDrawer({ show, accent, onClose }) {
     : selectedTier.priceCents;
   const canSubmit = !!selectedTier && name.trim() !== '' && email.includes('@') && !submitting;
   const allSoldOut = !!show && show.tiers.length > 0 && show.tiers.every(t => !t.available);
+  const nameInvalid = attempted && name.trim() === '';
+  const emailInvalid = attempted && !email.includes('@');
 
   async function handleConfirm() {
+    if (!canSubmit) { setAttempted(true); return; }
     setSubmitting(true);
     setError('');
     try {
@@ -114,7 +119,8 @@ function TicketDrawer({ show, accent, onClose }) {
               )}
 
               <ContactForm accent={accent} name={name} email={email}
-                onName={setName} onEmail={setEmail} />
+                onName={setName} onEmail={setEmail}
+                nameInvalid={nameInvalid} emailInvalid={emailInvalid} />
 
               {show.tiers.map(t => (
                 <TierRow key={t.id} tier={t} accent={accent}
@@ -221,16 +227,18 @@ function TierRow({ tier, accent, selected, onSelect, pwycAmount, onPwycAmount })
   );
 }
 
-function ContactForm({ accent, name, email, onName, onEmail }) {
-  const field = (label, value, onChange, type, placeholder, autoComplete) => (
+function ContactForm({ accent, name, email, onName, onEmail, nameInvalid, emailInvalid }) {
+  const field = (label, value, onChange, type, placeholder, autoComplete, invalid) => (
     <div style={{ flex: 1, minWidth: 160 }}>
       <label style={{ display: 'block', fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
-        letterSpacing: '0.3em', color: 'rgba(154,242,232,0.6)', marginBottom: 8 }}>{label}</label>
+        letterSpacing: '0.3em', color: invalid ? '#ff6b6b' : 'rgba(154,242,232,0.6)', marginBottom: 8 }}>{label}</label>
       <input type={type} value={value} placeholder={placeholder} autoComplete={autoComplete}
         onChange={e => onChange(e.target.value)}
-        style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(95,230,221,0.2)',
+        style={{ width: '100%',
+          background: invalid ? 'rgba(255,107,107,0.08)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${invalid ? '#ff6b6b' : 'rgba(95,230,221,0.2)'}`,
           color: '#fff', fontFamily: '"Space Grotesk", sans-serif', fontSize: 14, padding: '12px 14px',
-          outline: 'none', boxSizing: 'border-box' }} />
+          outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s ease, background 0.2s ease' }} />
     </div>
   );
 
@@ -239,8 +247,8 @@ function ContactForm({ accent, name, email, onName, onEmail }) {
       <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.34em',
         color: accent, marginBottom: 14 }}>YOUR INFO</div>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        {field('NAME', name, onName, 'text', 'Your name', 'name')}
-        {field('EMAIL', email, onEmail, 'email', 'ticket@example.com', 'email')}
+        {field('NAME', name, onName, 'text', 'Your name', 'name', nameInvalid)}
+        {field('EMAIL', email, onEmail, 'email', 'ticket@example.com', 'email', emailInvalid)}
       </div>
     </div>
   );
@@ -263,7 +271,7 @@ function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onCon
           {priceLabel}
         </span>
       </div>
-      <button onClick={canSubmit ? onConfirm : undefined} disabled={!canSubmit}
+      <button onClick={onConfirm} disabled={submitting}
         style={{
           width: '100%', padding: '16px', cursor: canSubmit ? 'pointer' : 'not-allowed',
           background: canSubmit ? accent : 'rgba(255,255,255,0.06)',

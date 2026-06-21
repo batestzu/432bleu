@@ -211,6 +211,9 @@
     .form-group input:focus { border-color: rgba(95,230,221,0.6); }
     .form-group input::placeholder { color: rgba(255,255,255,0.25); }
 
+    .form-group label.invalid { color: #ff6b6b; }
+    .form-group input.invalid { border-color: #ff6b6b; background: rgba(255,107,107,0.08); }
+
     /* ── submit ── */
     .submit-btn {
       width: 100%;
@@ -298,11 +301,11 @@
         <div class="section-label">YOUR INFO</div>
         <div class="form-row">
           <div class="form-group">
-            <label>NAME</label>
+            <label id="name-label">NAME</label>
             <input type="text" id="name" placeholder="Your name" autocomplete="name">
           </div>
           <div class="form-group">
-            <label>EMAIL</label>
+            <label id="email-label">EMAIL</label>
             <input type="email" id="email" placeholder="ticket@example.com" autocomplete="email">
           </div>
         </div>
@@ -313,7 +316,7 @@
         <div id="tiers"></div>
       </div>
 
-      <button class="submit-btn" id="submit-btn" onclick="submit()" disabled>GET TICKETS</button>
+      <button class="submit-btn" id="submit-btn" onclick="submit()">GET TICKETS</button>
       <p class="error-msg" id="error-msg"></p>
 
       <p class="fine-print">All entries 21+. Your ticket code will be emailed after checkout.</p>
@@ -324,6 +327,7 @@
     const eventId = parseInt(window.location.pathname.split('/').pop());
     let selectedTier = null;
     let eventData = null;
+    let attempted = false;
 
     function esc(s) {
       return String(s).replace(/[&<>"']/g, c =>
@@ -395,10 +399,19 @@
     }
 
     function updateBtn() {
+      if (attempted) updateInvalidStates();
+    }
+
+    function setFieldInvalid(id, invalid) {
+      document.getElementById(id).classList.toggle('invalid', invalid);
+      document.getElementById(`${id}-label`).classList.toggle('invalid', invalid);
+    }
+
+    function updateInvalidStates() {
       const name = document.getElementById('name').value.trim();
       const email = document.getElementById('email').value.trim();
-      const btn = document.getElementById('submit-btn');
-      btn.disabled = !(selectedTier && name && email.includes('@'));
+      setFieldInvalid('name', !name);
+      setFieldInvalid('email', !email || !email.includes('@'));
     }
 
     function selectTier(tierId) {
@@ -430,6 +443,8 @@
 
     async function submit() {
       clearError();
+      attempted = true;
+      updateInvalidStates();
       const name = document.getElementById('name').value.trim();
       const email = document.getElementById('email').value.trim();
 
