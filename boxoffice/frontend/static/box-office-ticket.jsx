@@ -35,7 +35,8 @@ function TicketDrawer({ show, accent, onClose }) {
   const amountCents = !selectedTier ? 0
     : isPwyc ? Math.round((parseFloat(pwycAmount) || 0) * 100)
     : selectedTier.priceCents;
-  const canSubmit = !!selectedTier && name.trim() !== '' && email.includes('@') && !submitting;
+  const canSubmit = !!selectedTier && name.trim() !== '' && email.includes('@') && !submitting
+    && !(isPwyc && amountCents < 100);
   const allSoldOut = !!show && show.tiers.length > 0 && show.tiers.every(t => !t.available);
   const nameInvalid = attempted && name.trim() === '';
   const emailInvalid = attempted && !email.includes('@');
@@ -45,7 +46,7 @@ function TicketDrawer({ show, accent, onClose }) {
     setSubmitting(true);
     setError('');
     try {
-      if (amountCents === 0) {
+      if (amountCents === 0 && !isPwyc) {
         const res = await fetch('/api/tickets/free', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -214,13 +215,13 @@ function TierRow({ tier, accent, selected, onSelect, pwycAmount, onPwycAmount })
           <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${accent}55`,
             paddingLeft: 10 }}>
             <span style={{ color: accent, fontFamily: '"JetBrains Mono", monospace' }}>$</span>
-            <input type="number" min="0" step="1" value={pwycAmount} placeholder="0"
+            <input type="number" min="1" step="1" value={pwycAmount} placeholder="1"
               onChange={e => onPwycAmount(e.target.value)}
               style={{ width: 70, background: 'transparent', border: 'none', outline: 'none',
                 color: '#fff', fontFamily: '"JetBrains Mono", monospace', fontSize: 15, padding: '8px 8px' }} />
           </div>
           <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
-            color: 'rgba(255,255,255,0.35)' }}>$0 OK · tip the room</span>
+            color: 'rgba(255,255,255,0.35)' }}>$1 minimum · tip the room</span>
         </div>
       )}
     </div>
@@ -255,9 +256,11 @@ function ContactForm({ accent, name, email, onName, onEmail, nameInvalid, emailI
 }
 
 function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onConfirm }) {
-  const priceLabel = !tier ? '—' : amountCents === 0 ? 'FREE' : '$' + (amountCents / 100).toFixed(2);
+  const isPwyc = !!(tier && tier.name === 'PWYC');
+  const priceLabel = !tier ? '—' : amountCents === 0 ? (isPwyc ? '—' : 'FREE') : '$' + (amountCents / 100).toFixed(2);
   const btnLabel = submitting ? 'PROCESSING…'
     : !tier ? 'SELECT A TICKET'
+    : isPwyc && amountCents < 100 ? 'ENTER AN AMOUNT'
     : amountCents === 0 ? 'CLAIM FREE TICKET'
     : 'SECURE TICKETS';
 

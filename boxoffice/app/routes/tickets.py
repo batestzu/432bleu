@@ -47,6 +47,8 @@ def claim_free_ticket(request: Request, req: FreeTicketRequest, response: Respon
     ).first()
     if not tier:
         raise HTTPException(status_code=404, detail="Tier not found")
+    if tier.name == "PWYC":
+        raise HTTPException(status_code=400, detail="Pay What You Can requires a minimum $1 payment")
     if tier.price_cents > 0:
         raise HTTPException(status_code=400, detail="This tier requires payment")
     if tier.capacity is not None and tier.sold >= tier.capacity:

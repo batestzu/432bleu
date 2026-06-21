@@ -213,6 +213,7 @@
 
     .form-group label.invalid { color: #ff6b6b; }
     .form-group input.invalid { border-color: #ff6b6b; background: rgba(255,107,107,0.08); }
+    .pwyc-field.invalid { border-color: #ff6b6b; background: rgba(255,107,107,0.08); }
 
     /* ── submit ── */
     .submit-btn {
@@ -378,10 +379,10 @@
                     <label>YOUR AMOUNT</label>
                     <div class="pwyc-field">
                       <span>$</span>
-                      <input type="number" id="pwyc-amount" min="0" step="1" value="0"
-                             placeholder="0" oninput="validatePwyc(this)">
+                      <input type="number" id="pwyc-amount" min="1" step="1" value=""
+                             placeholder="1" oninput="validatePwyc(this)">
                     </div>
-                    <span class="pwyc-hint">$0 OK · tip the room</span>
+                    <span class="pwyc-hint">$1 minimum · tip the room</span>
                   </div>` : ''}
               </div>
             `;
@@ -429,6 +430,10 @@
     function validatePwyc(input) {
       const val = parseFloat(input.value);
       if (val > 0 && val < 1) input.value = 1;
+      if (val <= 0) input.value = '';
+      if (attempted) {
+        input.closest('.pwyc-field').classList.toggle('invalid', !(parseFloat(input.value) >= 1));
+      }
     }
 
     function showError(msg) {
@@ -451,6 +456,12 @@
       if (!selectedTier) return showError('Please select a ticket type.');
       if (!name) return showError('Please enter your name.');
       if (!email || !email.includes('@')) return showError('Please enter a valid email.');
+      if (selectedTier.name === 'PWYC') {
+        const amount = parseFloat(document.getElementById('pwyc-amount').value) || 0;
+        const pwycInvalid = amount < 1;
+        document.getElementById('pwyc-amount').closest('.pwyc-field').classList.toggle('invalid', pwycInvalid);
+        if (pwycInvalid) return showError('Please enter at least $1.');
+      }
 
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
@@ -461,11 +472,7 @@
           await claimFree('GA');
         } else if (selectedTier.name === 'PWYC') {
           const amount = parseFloat(document.getElementById('pwyc-amount').value) || 0;
-          if (amount === 0) {
-            await claimFree('PWYC');
-          } else {
-            await startCheckout(Math.round(amount * 100));
-          }
+          await startCheckout(Math.round(amount * 100));
         } else {
           await startCheckout(selectedTier.price_cents);
         }
