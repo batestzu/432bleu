@@ -302,6 +302,7 @@ class LocalAdmin implements AdminInterface {
             mapUrl,
             wamUrl,
             canEdit,
+            roomName: "432Bleu",
             authenticationMandatory: DISABLE_ANONYMOUS,
             contactPage: null,
             group: wamUrl ? "default" : null,
