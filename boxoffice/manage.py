@@ -7,6 +7,7 @@ Usage:
   python manage.py sales <event-id>
   python manage.py deactivate <event-id>
   python manage.py create-membership-tier "season" "Season Pass" 1000 month "Optional description"
+  python manage.py register-membership-tier "season" price_xxx ["Label override"] ["description"]
   python manage.py list-membership-tiers
   python manage.py members
   python manage.py deactivate-membership-tier <tier-id>
@@ -114,7 +115,7 @@ def create_membership_tier(name, label, price_cents, interval, description=""):
     import stripe
     stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
 
-    product = stripe.products.create(
+    product = stripe.Product.create(
         name=label,
         description=description or f"{label} membership",
         default_price_data={
@@ -140,6 +141,39 @@ def create_membership_tier(name, label, price_cents, interval, description=""):
         db.commit()
         print(f"Created membership tier #{tier.id}: {label} (${price_cents/100:.2f}/{interval})")
         print(f"  Stripe product: {product.id}  price: {product.default_price}")
+    finally:
+        db.close()
+
+
+def register_membership_tier(name, stripe_price_id, label=None, description=""):
+    """Register a membership tier from a price already created in the Stripe dashboard."""
+    import stripe
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+
+    price = stripe.Price.retrieve(stripe_price_id, expand=["product"])
+    if not price.recurring:
+        raise ValueError(f"{stripe_price_id} is not a recurring price")
+
+    product = price.product
+    final_label = label or product.name
+    final_description = description or (product.description or "")
+
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        tier = MembershipTier(
+            name=name,
+            label=final_label,
+            price_cents=price.unit_amount,
+            interval=price.recurring.interval,
+            stripe_price_id=price.id,
+            stripe_product_id=product.id,
+            description=final_description,
+        )
+        db.add(tier)
+        db.commit()
+        print(f"Registered membership tier #{tier.id}: {final_label} "
+              f"(${price.unit_amount/100:.2f}/{price.recurring.interval})")
     finally:
         db.close()
 
@@ -213,6 +247,15 @@ if __name__ == "__main__":
             create_membership_tier(
                 sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5],
                 sys.argv[6] if len(sys.argv) > 6 else "",
+            )
+    elif cmd == "register-membership-tier":
+        if len(sys.argv) < 4:
+            print('Usage: python manage.py register-membership-tier "name" price_xxx ["Label override"] ["description"]')
+        else:
+            register_membership_tier(
+                sys.argv[2], sys.argv[3],
+                sys.argv[4] if len(sys.argv) > 4 else None,
+                sys.argv[5] if len(sys.argv) > 5 else "",
             )
     elif cmd == "list-membership-tiers":
         list_membership_tiers()
