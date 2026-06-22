@@ -28,6 +28,36 @@ class TicketTier(Base):
     tickets = relationship("Ticket", back_populates="tier")
 
 
+class MembershipTier(Base):
+    __tablename__ = "membership_tiers"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)    # "season", "vip" — internal key
+    label = Column(String, nullable=False)   # Display name, e.g. "Season Pass"
+    price_cents = Column(Integer, nullable=False)
+    interval = Column(String, default="month")  # "month" or "year"
+    stripe_price_id = Column(String, nullable=False)
+    stripe_product_id = Column(String, nullable=True)
+    description = Column(String, default="")
+    is_active = Column(Boolean, default=True)
+    memberships = relationship("Membership", back_populates="tier")
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+    id = Column(Integer, primary_key=True)
+    tier_id = Column(Integer, ForeignKey("membership_tiers.id"), nullable=False)
+    code = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, nullable=False)
+    name = Column(String, default="")
+    stripe_customer_id = Column(String, nullable=True, index=True)
+    stripe_subscription_id = Column(String, nullable=True, unique=True)
+    stripe_session_id = Column(String, nullable=True, unique=True)
+    status = Column(String, default="incomplete")  # active, past_due, canceled, incomplete
+    current_period_end = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    tier = relationship("MembershipTier", back_populates="memberships")
+
+
 class Ticket(Base):
     __tablename__ = "tickets"
     id = Column(Integer, primary_key=True)

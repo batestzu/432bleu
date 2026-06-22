@@ -53,3 +53,46 @@ def send_ticket_email(
         html_content=body,
     )
     SendGridAPIClient(SENDGRID_API_KEY).send(message)
+
+
+def send_membership_email(
+    to_email: str,
+    name: str,
+    tier_label: str,
+    code: str,
+) -> None:
+    safe_name = html.escape(name)
+    safe_tier = html.escape(tier_label)
+    safe_code = html.escape(code)
+
+    body = f"""
+    <div style="background:#02060a;color:#e0f7ff;font-family:monospace;padding:40px;max-width:600px;margin:0 auto;border:1px solid #0a2a35;">
+        <h1 style="color:#00e5ff;letter-spacing:6px;margin:0 0 4px;">432 BLEU</h1>
+        <p style="color:#555;margin:0 0 32px;letter-spacing:2px;font-size:12px;">VIRTUAL VENUE</p>
+
+        <h2 style="color:#e0f7ff;font-weight:normal;">Your membership is active.</h2>
+        <p>Hey {safe_name},</p>
+        <p>You're a <strong style="color:#00e5ff;">{safe_tier}</strong> member.</p>
+
+        <div style="background:#040d10;border:1px solid #00e5ff;padding:28px;margin:28px 0;text-align:center;border-radius:4px;">
+            <p style="color:#556;margin:0 0 10px;font-size:12px;letter-spacing:3px;">MEMBER ACCESS CODE</p>
+            <p style="font-size:36px;letter-spacing:10px;color:#00e5ff;margin:0;font-weight:bold;">{safe_code}</p>
+        </div>
+
+        <p>This code gets you into every show while your membership is active:</p>
+        <p><a href="{PLAY_URL}" style="color:#00e5ff;">{PLAY_URL}</a></p>
+
+        <p style="color:#333;font-size:11px;margin-top:40px;border-top:1px solid #0a2a35;padding-top:16px;">
+            Your card will be billed automatically each period. Manage or cancel anytime from the
+            box office site.
+        </p>
+    </div>
+    """
+
+    message = Mail(
+        from_email=FROM_EMAIL,
+        to_emails=to_email,
+        subject=f"Your membership — 432 BLEU",
+        html_content=body,
+    )
+    SendGridAPIClient(SENDGRID_API_KEY).send(message)

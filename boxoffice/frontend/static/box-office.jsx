@@ -140,14 +140,15 @@ function Nav({ accent, mobile }) {
       {!mobile &&
       <div style={{ display: 'flex', gap: 30, fontFamily: '"JetBrains Mono", monospace',
         fontSize: 11, letterSpacing: '0.22em', color: 'rgba(154,242,232,0.7)' }}>
-          {['CALENDAR', 'THE ROOM', 'MEMBERSHIP'].map((x) =>
-        <a key={x} href="#" style={{ color: 'inherit', textDecoration: 'none' }}
+          {[['CALENDAR', '#'], ['THE ROOM', '#'], ['MEMBERSHIP', '/membership']].map(([x, href]) =>
+        <a key={x} href={href} style={{ color: 'inherit', textDecoration: 'none' }}
         onMouseEnter={(e) => e.currentTarget.style.color = accent}
         onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(154,242,232,0.7)'}>{x}</a>
         )}
         </div>
       }
-      <button style={{ background: 'transparent', border: `1px solid ${accent}66`, color: accent,
+      <button onClick={() => window.location.href = '/membership'}
+        style={{ background: 'transparent', border: `1px solid ${accent}66`, color: accent,
         padding: mobile ? '9px 14px' : '10px 20px', cursor: 'pointer',
         fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.2em' }}>
         MEMBER LOGIN

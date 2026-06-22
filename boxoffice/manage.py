@@ -6,6 +6,10 @@ Usage:
   python manage.py list-events
   python manage.py sales <event-id>
   python manage.py deactivate <event-id>
+  python manage.py create-membership-tier "season" "Season Pass" 1000 month "Optional description"
+  python manage.py list-membership-tiers
+  python manage.py members
+  python manage.py deactivate-membership-tier <tier-id>
   python manage.py init-db
 """
 import os
@@ -15,7 +19,7 @@ from datetime import datetime
 os.environ.setdefault("DATABASE_URL", "postgresql://boxoffice:boxoffice@localhost:5433/boxoffice")
 
 from app.database import engine, SessionLocal, Base
-from app.models import Event, TicketTier, Ticket
+from app.models import Event, TicketTier, Ticket, MembershipTier, Membership
 from sqlalchemy import func
 
 
@@ -103,6 +107,84 @@ def deactivate(event_id):
         db.close()
 
 
+def create_membership_tier(name, label, price_cents, interval, description=""):
+    if interval not in ("month", "year"):
+        raise ValueError('interval must be "month" or "year"')
+
+    import stripe
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+
+    product = stripe.products.create(
+        name=label,
+        description=description or f"{label} membership",
+        default_price_data={
+            "unit_amount": price_cents,
+            "currency": "usd",
+            "recurring": {"interval": interval},
+        },
+    )
+
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        tier = MembershipTier(
+            name=name,
+            label=label,
+            price_cents=price_cents,
+            interval=interval,
+            stripe_price_id=product.default_price,
+            stripe_product_id=product.id,
+            description=description,
+        )
+        db.add(tier)
+        db.commit()
+        print(f"Created membership tier #{tier.id}: {label} (${price_cents/100:.2f}/{interval})")
+        print(f"  Stripe product: {product.id}  price: {product.default_price}")
+    finally:
+        db.close()
+
+
+def list_membership_tiers():
+    db = SessionLocal()
+    try:
+        tiers = db.query(MembershipTier).all()
+        if not tiers:
+            print("No membership tiers.")
+            return
+        for t in tiers:
+            status = "active" if t.is_active else "inactive"
+            print(f"  #{t.id}  [{status}]  {t.label}  —  ${t.price_cents/100:.2f}/{t.interval}  ({t.stripe_price_id})")
+    finally:
+        db.close()
+
+
+def deactivate_membership_tier(tier_id):
+    db = SessionLocal()
+    try:
+        tier = db.query(MembershipTier).filter(MembershipTier.id == tier_id).first()
+        if not tier:
+            print("Membership tier not found.")
+            return
+        tier.is_active = False
+        db.commit()
+        print(f"Membership tier #{tier_id} deactivated.")
+    finally:
+        db.close()
+
+
+def list_members():
+    db = SessionLocal()
+    try:
+        memberships = db.query(Membership).order_by(Membership.created_at).all()
+        if not memberships:
+            print("No members.")
+            return
+        for m in memberships:
+            print(f"  #{m.id}  [{m.status}]  {m.name or m.email}  —  {m.tier.label}  —  code {m.code}")
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
     if cmd == "init-db":
@@ -124,5 +206,22 @@ if __name__ == "__main__":
             print("Usage: python manage.py deactivate <event-id>")
         else:
             deactivate(int(sys.argv[2]))
+    elif cmd == "create-membership-tier":
+        if len(sys.argv) < 5:
+            print('Usage: python manage.py create-membership-tier "name" "Label" <price_cents> <month|year> ["description"]')
+        else:
+            create_membership_tier(
+                sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5],
+                sys.argv[6] if len(sys.argv) > 6 else "",
+            )
+    elif cmd == "list-membership-tiers":
+        list_membership_tiers()
+    elif cmd == "deactivate-membership-tier":
+        if len(sys.argv) < 3:
+            print("Usage: python manage.py deactivate-membership-tier <tier-id>")
+        else:
+            deactivate_membership_tier(int(sys.argv[2]))
+    elif cmd == "members":
+        list_members()
     else:
         print(__doc__)

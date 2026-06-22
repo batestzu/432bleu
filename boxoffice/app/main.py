@@ -6,7 +6,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .database import engine, Base
 from .limiter import limiter
-from .routes import events, tickets, webhooks, validate, gate
+from .routes import events, tickets, webhooks, validate, gate, membership
 
 
 @asynccontextmanager
@@ -24,6 +24,7 @@ app.include_router(tickets.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(validate.router, prefix="/api")
 app.include_router(gate.router, prefix="/api")
+app.include_router(membership.router, prefix="/api")
 
 app.mount("/static", StaticFiles(directory="/app/frontend/static"), name="static")
 
@@ -51,3 +52,13 @@ def success_page():
 @app.get("/enter")
 def enter_page():
     return FileResponse("/app/frontend/enter.html")
+
+
+@app.get("/membership")
+def membership_page():
+    return FileResponse("/app/frontend/membership.html")
+
+
+@app.get("/membership/success")
+def membership_success_page():
+    return FileResponse("/app/frontend/membership-success.html")

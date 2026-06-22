@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>432 BLEU — Membership</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100vh;
+      background: linear-gradient(180deg, #061d28 0%, #03101a 60%, #02080e 100%);
+      background-attachment: fixed;
+      color: #fff;
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection { background: #5fe6dd; color: #02060a; }
+
+    .page-wrap { max-width: 560px; margin: 0 auto; padding: 48px 24px 64px; }
+
+    .page-header {
+      margin-bottom: 36px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(95,230,221,0.16);
+    }
+
+    .page-eyebrow {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      color: #5fe6dd;
+      margin-bottom: 14px;
+    }
+
+    .page-artist {
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin-bottom: 12px;
+    }
+
+    .page-desc {
+      margin-top: 10px;
+      font-size: 13px;
+      color: rgba(154,242,232,0.55);
+      font-family: "JetBrains Mono", monospace;
+      letter-spacing: 0.04em;
+      line-height: 1.6;
+    }
+
+    .section-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      color: #5fe6dd;
+      margin-bottom: 14px;
+    }
+
+    .tiers-wrap { margin-bottom: 28px; }
+
+    .tier-card {
+      padding: 16px 18px;
+      margin: 10px 0;
+      cursor: pointer;
+      border: 1px solid rgba(95,230,221,0.16);
+      background: rgba(255,255,255,0.02);
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .tier-card:hover { border-color: rgba(95,230,221,0.4); }
+    .tier-card.selected { border-color: #5fe6dd; background: rgba(95,230,221,0.08); }
+
+    .tier-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .tier-name {
+      font-family: "Unbounded", sans-serif;
+      font-weight: 500;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+      color: #fff;
+      transition: color 0.2s;
+    }
+
+    .tier-card.selected .tier-name { color: #5fe6dd; }
+
+    .tier-price {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      color: rgba(255,255,255,0.85);
+      white-space: nowrap;
+    }
+
+    .tier-desc {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: rgba(154,242,232,0.55);
+      margin-top: 6px;
+    }
+
+    .form-wrap { margin-bottom: 28px; }
+    .form-row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .form-group { flex: 1; min-width: 150px; }
+
+    .form-group label {
+      display: block;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: rgba(154,242,232,0.6);
+      margin-bottom: 8px;
+    }
+
+    .form-group input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(95,230,221,0.2);
+      color: #fff;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 14px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus { border-color: rgba(95,230,221,0.6); }
+    .form-group input::placeholder { color: rgba(255,255,255,0.25); }
+
+    .submit-btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      cursor: pointer;
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.14em;
+      background: #5fe6dd;
+      color: #02060a;
+      box-shadow: 0 0 30px rgba(95,230,221,0.4);
+      transition: all 0.2s ease;
+    }
+
+    .submit-btn:disabled {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.35);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    .error-msg {
+      color: #ff6b6b;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      margin-top: 14px;
+      display: none;
+      text-align: center;
+    }
+
+    .error-msg.visible { display: block; }
+
+    .fine-print {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: rgba(154,242,232,0.45);
+      line-height: 1.7;
+      margin-top: 28px;
+    }
+
+    .loading, .empty-state {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      color: rgba(154,242,232,0.5);
+      padding: 60px 0;
+      text-align: center;
+    }
+
+    .manage-link {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: rgba(154,242,232,0.6);
+      text-decoration: none;
+    }
+
+    .manage-link:hover { color: #5fe6dd; }
+
+    @media (max-width: 500px) {
+      .page-wrap { padding: 32px 16px 48px; }
+      .form-row { flex-direction: column; }
+      .page-artist { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <p class="loading" id="loading">LOADING · · ·</p>
+
+    <div id="content" style="display:none;">
+      <div class="page-header">
+        <div class="page-eyebrow">432 BLEU MEMBERSHIP</div>
+        <div class="page-artist">Become a member</div>
+        <div class="page-desc">Recurring access to every show in the venue, billed automatically each period. Cancel anytime.</div>
+      </div>
+
+      <div class="form-wrap">
+        <div class="section-label">YOUR INFO</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>NAME</label>
+            <input type="text" id="name" placeholder="Your name" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label>EMAIL</label>
+            <input type="email" id="email" placeholder="member@example.com" autocomplete="email">
+          </div>
+        </div>
+      </div>
+
+      <div class="tiers-wrap">
+        <div class="section-label">CHOOSE YOUR MEMBERSHIP</div>
+        <div id="tiers"></div>
+      </div>
+
+      <button class="submit-btn" id="submit-btn" onclick="submit()" disabled>BECOME A MEMBER</button>
+      <p class="error-msg" id="error-msg"></p>
+
+      <a class="manage-link" href="#" onclick="manage(event)">Already a member? Manage your subscription →</a>
+
+      <p class="fine-print">Membership renews automatically until canceled. Your access code will be emailed after signup.</p>
+    </div>
+
+    <div id="empty" class="empty-state" style="display:none;">
+      No memberships available right now. Check back soon.
+    </div>
+  </div>
+
+  <script>
+    let selectedTier = null;
+    let tiers = [];
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function load() {
+      try {
+        const res = await fetch('/api/membership/tiers');
+        tiers = res.ok ? await res.json() : [];
+
+        if (tiers.length === 0) {
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('empty').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('tiers').innerHTML = tiers.map(t => `
+          <div class="tier-card" id="tier-${t.id}" onclick="selectTier(${t.id})">
+            <div class="tier-header">
+              <span class="tier-name">${esc(t.label)}</span>
+              <span class="tier-price">$${(t.price_cents / 100).toFixed(2)} / ${esc(t.interval)}</span>
+            </div>
+            ${t.description ? `<div class="tier-desc">${esc(t.description)}</div>` : ''}
+          </div>
+        `).join('');
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+
+        document.getElementById('name').addEventListener('input', updateBtn);
+        document.getElementById('email').addEventListener('input', updateBtn);
+      } catch {
+        document.getElementById('loading').textContent = 'COULD NOT LOAD MEMBERSHIPS.';
+      }
+    }
+
+    function updateBtn() {
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = !(selectedTier && name && email.includes('@'));
+    }
+
+    function selectTier(tierId) {
+      selectedTier = tiers.find(t => t.id === tierId);
+      document.querySelectorAll('.tier-card').forEach(el => el.classList.remove('selected'));
+      document.getElementById(`tier-${tierId}`).classList.add('selected');
+      updateBtn();
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function clearError() {
+      document.getElementById('error-msg').classList.remove('visible');
+    }
+
+    async function submit() {
+      clearError();
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      if (!selectedTier) return showError('Please select a membership.');
+      if (!name) return showError('Please enter your name.');
+      if (!email || !email.includes('@')) return showError('Please enter a valid email.');
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'PROCESSING…';
+
+      try {
+        const res = await fetch('/api/membership/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier_id: selectedTier.id, email, name }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail);
+        }
+
+        const { checkout_url } = await res.json();
+        window.location.href = checkout_url;
+      } catch {
+        showError('Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'BECOME A MEMBER';
+        updateBtn();
+      }
+    }
+
+    async function manage(e) {
+      e.preventDefault();
+      try {
+        const res = await fetch('/api/membership/portal', { method: 'POST' });
+        if (!res.ok) {
+          showError('No active membership found on this device.');
+          return;
+        }
+        const { portal_url } = await res.json();
+        window.location.href = portal_url;
+      } catch {
+        showError('Something went wrong. Please try again.');
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

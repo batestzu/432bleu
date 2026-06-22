@@ -1,34 +1,29 @@
 import os
 import stripe
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Event, TicketTier, Ticket
+from ..models import Event, TicketTier, Ticket, MembershipTier, Membership
 from ..code_gen import generate_code
-from ..email_client import send_ticket_email
+from ..email_client import send_ticket_email, send_membership_email
 
 router = APIRouter()
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
 
-@router.post("/webhooks/stripe")
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    payload = await request.body()
-    sig = request.headers.get("stripe-signature", "")
+def _unique_code(db: Session, model) -> str:
+    code = generate_code()
+    for _ in range(10):
+        if not db.query(model).filter(model.code == code).first():
+            return code
+        code = generate_code()
+    return code
 
-    try:
-        event = stripe.Webhook.construct_event(payload, sig, WEBHOOK_SECRET)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
-    if event["type"] != "checkout.session.completed":
-        return {"status": "ignored"}
-
-    session = event["data"]["object"]
-
-    # Idempotency — Stripe can retry webhooks
+def _handle_ticket_checkout(db: Session, session):
     if db.query(Ticket).filter(Ticket.stripe_session_id == session["id"]).first():
-        return {"status": "already processed"}
+        return
 
     meta = session.get("metadata", {})
     event_id = int(meta["event_id"])
@@ -40,16 +35,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     tier = db.query(TicketTier).filter(TicketTier.id == tier_id).first()
     db_event = db.query(Event).filter(Event.id == event_id).first()
 
-    code = generate_code()
-    for _ in range(10):
-        if not db.query(Ticket).filter(Ticket.code == code).first():
-            break
-        code = generate_code()
-
     ticket = Ticket(
         event_id=event_id,
         tier_id=tier_id,
-        code=code,
+        code=_unique_code(db, Ticket),
         email=email,
         name=name,
         stripe_session_id=session["id"],
@@ -66,9 +55,93 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             event_name=db_event.name,
             event_date=db_event.date.strftime("%B %d, %Y"),
             tier_label=tier.label,
-            code=code,
+            code=ticket.code,
         )
     except Exception:
         pass
+
+
+def _handle_membership_checkout(db: Session, session):
+    if db.query(Membership).filter(Membership.stripe_session_id == session["id"]).first():
+        return
+
+    meta = session.get("metadata", {})
+    tier_id = int(meta["tier_id"])
+    name = meta.get("name", "")
+    email = meta.get("email", session.get("customer_email", ""))
+
+    tier = db.query(MembershipTier).filter(MembershipTier.id == tier_id).first()
+
+    membership = Membership(
+        tier_id=tier_id,
+        code=_unique_code(db, Membership),
+        email=email,
+        name=name,
+        stripe_customer_id=session.get("customer"),
+        stripe_subscription_id=session.get("subscription"),
+        stripe_session_id=session["id"],
+        status="active",
+    )
+    db.add(membership)
+    db.commit()
+
+    try:
+        send_membership_email(
+            to_email=email,
+            name=name,
+            tier_label=tier.label,
+            code=membership.code,
+        )
+    except Exception:
+        pass
+
+
+def _handle_subscription_updated(db: Session, subscription):
+    membership = db.query(Membership).filter(
+        Membership.stripe_subscription_id == subscription["id"]
+    ).first()
+    if not membership:
+        return
+    membership.status = subscription.get("status", membership.status)
+    period_end = subscription.get("current_period_end")
+    if period_end:
+        membership.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
+    db.commit()
+
+
+def _handle_subscription_deleted(db: Session, subscription):
+    membership = db.query(Membership).filter(
+        Membership.stripe_subscription_id == subscription["id"]
+    ).first()
+    if not membership:
+        return
+    membership.status = "canceled"
+    db.commit()
+
+
+@router.post("/webhooks/stripe")
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, WEBHOOK_SECRET)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+
+    event_type = event["type"]
+    obj = event["data"]["object"]
+
+    if event_type == "checkout.session.completed":
+        if obj.get("mode") == "subscription":
+            _handle_membership_checkout(db, obj)
+        else:
+            _handle_ticket_checkout(db, obj)
+    elif event_type == "customer.subscription.updated":
+        _handle_subscription_updated(db, obj)
+    elif event_type == "customer.subscription.deleted":
+        _handle_subscription_deleted(db, obj)
+    else:
+        return {"status": "ignored"}
 
     return {"status": "ok"}
