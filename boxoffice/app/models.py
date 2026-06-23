@@ -58,6 +58,22 @@ class Membership(Base):
     tier = relationship("MembershipTier", back_populates="memberships")
 
 
+class CryptoOrder(Base):
+    __tablename__ = "crypto_orders"
+    id = Column(Integer, primary_key=True)
+    order_id = Column(String, unique=True, nullable=False, index=True)
+    kind = Column(String, nullable=False)  # "ticket" or "membership"
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True)
+    tier_id = Column(Integer, nullable=False)  # ticket_tiers.id or membership_tiers.id depending on kind
+    email = Column(String, nullable=False)
+    name = Column(String, default="")
+    amount_cents = Column(Integer, default=0)
+    nowpayments_payment_id = Column(String, nullable=True, index=True)
+    status = Column(String, default="pending")  # pending, finished, failed
+    result_code = Column(String, nullable=True)  # ticket/membership code, set once payment finishes
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class Ticket(Base):
     __tablename__ = "tickets"
     id = Column(Integer, primary_key=True)

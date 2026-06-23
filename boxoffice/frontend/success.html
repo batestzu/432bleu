@@ -45,6 +45,23 @@
       };
       poll();
     }
+
+    // Crypto checkout: blockchain confirmations are slower than card payments,
+    // so poll longer (up to ~5 minutes) before giving up.
+    const orderId = new URLSearchParams(window.location.search).get('order_id');
+    if (orderId) {
+      let cryptoTries = 0;
+      const pollCrypto = async () => {
+        cryptoTries++;
+        try {
+          const res = await fetch(`/api/checkout/crypto/by-order?order_id=${encodeURIComponent(orderId)}`);
+          const data = await res.json();
+          if (data.ready) return;
+        } catch {}
+        if (cryptoTries < 60) setTimeout(pollCrypto, 5000);
+      };
+      pollCrypto();
+    }
   </script>
 </body>
 </html>

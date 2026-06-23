@@ -238,6 +238,27 @@
       cursor: not-allowed;
     }
 
+    .crypto-btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 10px;
+      border: 1px solid rgba(95,230,221,0.35);
+      cursor: pointer;
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      background: transparent;
+      color: #5fe6dd;
+      transition: all 0.2s ease;
+    }
+
+    .crypto-btn:disabled {
+      border-color: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.3);
+      cursor: not-allowed;
+    }
+
     /* ── misc ── */
     .sold-out-banner {
       padding: 14px 16px;
@@ -318,6 +339,7 @@
       </div>
 
       <button class="submit-btn" id="submit-btn" onclick="submit()">GET TICKETS</button>
+      <button class="crypto-btn" id="crypto-btn" onclick="submitCrypto()" style="display:none;">PAY WITH CRYPTO</button>
       <p class="error-msg" id="error-msg"></p>
 
       <p class="fine-print">All entries 21+. Your ticket code will be emailed after checkout.</p>
@@ -424,6 +446,8 @@
       if (pwycInput) {
         pwycInput.classList.toggle('visible', selectedTier.name === 'PWYC');
       }
+      document.getElementById('crypto-btn').style.display =
+        selectedTier.name === 'GA' ? 'none' : 'block';
       updateBtn();
     }
 
@@ -481,6 +505,56 @@
         btn.disabled = false;
         btn.textContent = 'GET TICKETS';
         updateBtn();
+      }
+    }
+
+    async function submitCrypto() {
+      clearError();
+      attempted = true;
+      updateInvalidStates();
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      if (!selectedTier) return showError('Please select a ticket type.');
+      if (!name) return showError('Please enter your name.');
+      if (!email || !email.includes('@')) return showError('Please enter a valid email.');
+
+      let amountCents = selectedTier.price_cents;
+      if (selectedTier.name === 'PWYC') {
+        const amount = parseFloat(document.getElementById('pwyc-amount').value) || 0;
+        const pwycInvalid = amount < 1;
+        document.getElementById('pwyc-amount').closest('.pwyc-field').classList.toggle('invalid', pwycInvalid);
+        if (pwycInvalid) return showError('Please enter at least $1.');
+        amountCents = Math.round(amount * 100);
+      }
+
+      const btn = document.getElementById('crypto-btn');
+      btn.disabled = true;
+      btn.textContent = 'REDIRECTING…';
+
+      try {
+        const res = await fetch('/api/checkout/crypto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_id: eventId,
+            tier_id: selectedTier.id,
+            email, name,
+            amount_cents: amountCents,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail);
+        }
+
+        const { checkout_url } = await res.json();
+        window.location.href = checkout_url;
+      } catch {
+        showError('Crypto checkout is unavailable right now. Please try again or pay by card.');
+        btn.disabled = false;
+        btn.textContent = 'PAY WITH CRYPTO';
       }
     }
 
