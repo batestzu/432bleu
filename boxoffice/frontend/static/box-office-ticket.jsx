@@ -8,6 +8,7 @@ function TicketDrawer({ show, accent, onClose }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [cryptoSubmitting, setCryptoSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const [attempted, setAttempted] = useState(false);
@@ -18,6 +19,7 @@ function TicketDrawer({ show, accent, onClose }) {
     setName('');
     setEmail('');
     setSubmitting(false);
+    setCryptoSubmitting(false);
     setError('');
     setDone(false);
     setAttempted(false);
@@ -37,6 +39,7 @@ function TicketDrawer({ show, accent, onClose }) {
     : selectedTier.priceCents;
   const canSubmit = !!selectedTier && name.trim() !== '' && email.includes('@') && !submitting
     && !(isPwyc && amountCents < 100);
+  const canSubmitCrypto = canSubmit && selectedTier && selectedTier.name !== 'GA' && !cryptoSubmitting;
   const allSoldOut = !!show && show.tiers.length > 0 && show.tiers.every(t => !t.available);
   const nameInvalid = attempted && name.trim() === '';
   const emailInvalid = attempted && !email.includes('@');
@@ -80,6 +83,31 @@ function TicketDrawer({ show, accent, onClose }) {
     } catch (e) {
       setError(e.message || 'Something went wrong. Please try again.');
       setSubmitting(false);
+    }
+  }
+
+  async function handleCryptoConfirm() {
+    if (!canSubmitCrypto) { setAttempted(true); return; }
+    setCryptoSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch('/api/checkout/crypto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: show.id, tier_id: selectedTier.id,
+          email: email.trim(), name: name.trim(), amount_cents: amountCents,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Crypto checkout is unavailable right now.');
+      }
+      const { checkout_url } = await res.json();
+      window.location.href = checkout_url; // leaving the SPA for NOWPayments
+    } catch (e) {
+      setError(e.message || 'Crypto checkout is unavailable right now.');
+      setCryptoSubmitting(false);
     }
   }
 
@@ -140,7 +168,9 @@ function TicketDrawer({ show, accent, onClose }) {
 
             <Footer accent={accent} tier={selectedTier} amountCents={amountCents}
               canSubmit={canSubmit} submitting={submitting} error={error}
-              onConfirm={handleConfirm} />
+              onConfirm={handleConfirm}
+              canSubmitCrypto={canSubmitCrypto} cryptoSubmitting={cryptoSubmitting}
+              onCryptoConfirm={handleCryptoConfirm} />
           </>
         )}
 
@@ -255,7 +285,8 @@ function ContactForm({ accent, name, email, onName, onEmail, nameInvalid, emailI
   );
 }
 
-function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onConfirm }) {
+function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onConfirm,
+  canSubmitCrypto, cryptoSubmitting, onCryptoConfirm }) {
   const isPwyc = !!(tier && tier.name === 'PWYC');
   const priceLabel = !tier ? '—' : amountCents === 0 ? (isPwyc ? '—' : 'FREE') : '$' + (amountCents / 100).toFixed(2);
   const btnLabel = submitting ? 'PROCESSING…'
@@ -263,6 +294,8 @@ function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onCon
     : isPwyc && amountCents < 100 ? 'ENTER AN AMOUNT'
     : amountCents === 0 ? 'CLAIM FREE TICKET'
     : 'SECURE TICKETS';
+  const showCryptoBtn = !!tier && tier.name !== 'GA';
+  const cryptoBtnLabel = cryptoSubmitting ? 'REDIRECTING…' : 'PAY WITH CRYPTO';
 
   return (
     <div style={{ padding: '18px 26px 26px', borderTop: `1px solid ${accent}44`,
@@ -286,6 +319,20 @@ function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onCon
         }}>
         {btnLabel}
       </button>
+      {showCryptoBtn && (
+        <button onClick={onCryptoConfirm} disabled={cryptoSubmitting}
+          style={{
+            width: '100%', padding: '14px', marginTop: 10, cursor: canSubmitCrypto ? 'pointer' : 'not-allowed',
+            background: 'transparent',
+            color: canSubmitCrypto ? accent : 'rgba(255,255,255,0.3)',
+            border: `1px solid ${canSubmitCrypto ? accent + '55' : 'rgba(255,255,255,0.1)'}`,
+            fontFamily: '"JetBrains Mono", monospace', fontWeight: 600,
+            fontSize: 12, letterSpacing: '0.1em',
+            transition: 'all 0.2s ease',
+          }}>
+          {cryptoBtnLabel}
+        </button>
+      )}
       {error &&
         <div style={{ marginTop: 12, textAlign: 'center', fontFamily: '"JetBrains Mono", monospace',
           fontSize: 11, letterSpacing: '0.06em', color: '#ff6b6b' }}>{error}</div>
