@@ -58,13 +58,16 @@ async function fetchShows() {
     const full = detail.ok ? await detail.json() : { ...e, tiers: [] };
     const tiers = full.tiers.map(mapTier);
     const d = new Date(full.date);
+    const doors = full.doors_time ? new Date(full.doors_time) : null;
 
     return {
       id: full.id,
       artist: full.name,
       tagline: full.description || '',
       dateISO: full.date,
+      doorsISO: full.doors_time || null,
       dateLabel: `${WEEKDAYS[d.getDay()]} ${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]}`,
+      doorsLabel: doors ? doors.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
       timeLabel: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       room: 'MAIN ROOM',
       hz: '432.000',

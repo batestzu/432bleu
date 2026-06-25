@@ -198,7 +198,8 @@ function Header({ show, accent, onClose }) {
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontFamily: '"JetBrains Mono", monospace',
         fontSize: 11, letterSpacing: '0.12em', color: 'rgba(154,242,232,0.75)' }}>
         <span>{show.dateLabel}</span>
-        <span>{show.timeLabel}</span>
+        {show.doorsLabel && <span>DOORS {show.doorsLabel}</span>}
+        <span>SHOW {show.timeLabel}</span>
         <span>{show.room}</span>
       </div>
     </div>
@@ -367,7 +368,7 @@ function Confirmation({ show, accent, tier, amountCents, email, onClose }) {
         <div style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 14, color: 'rgba(154,242,232,0.7)',
           marginTop: 8, lineHeight: 1.5 }}>
           {tier.label} · {priceLabel} for <strong style={{ color: '#fff' }}>{show.artist}</strong><br />
-          {show.dateLabel} · {show.timeLabel} · {show.room}
+          {show.dateLabel} · {show.doorsLabel ? `DOORS ${show.doorsLabel} · SHOW ` : ''}{show.timeLabel} · {show.room}
         </div>
       </div>
 

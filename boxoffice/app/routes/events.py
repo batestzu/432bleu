@@ -14,6 +14,7 @@ def list_events(db: Session = Depends(get_db)):
             "id": e.id,
             "name": e.name,
             "date": e.date.isoformat(),
+            "doors_time": e.doors_time.isoformat() if e.doors_time else None,
             "description": e.description,
         }
         for e in events
@@ -30,6 +31,7 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
         "id": event.id,
         "name": event.name,
         "date": event.date.isoformat(),
+        "doors_time": event.doors_time.isoformat() if event.doors_time else None,
         "description": event.description,
         "tiers": [
             {

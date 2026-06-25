@@ -191,7 +191,7 @@ function Hero({ show, accent, mobile, layout, onGet }) {
   const datestack =
   <div style={{ display: 'flex', gap: mobile ? 22 : 40, flexWrap: 'wrap',
     justifyContent: centered ? 'center' : 'flex-start', marginTop: 26 }}>
-      {[['DATE', show.dateLabel], ['DOORS', show.timeLabel], ['ROOM', show.room]].map(([k, v]) =>
+      {[['DATE', show.dateLabel], ...(show.doorsLabel ? [['DOORS', show.doorsLabel]] : []), ['SHOW', show.timeLabel], ['ROOM', show.room]].map(([k, v]) =>
     <div key={k}>
           <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.28em',
         color: 'rgba(95,230,221,0.55)', marginBottom: 6 }}>{k}</div>
@@ -352,7 +352,7 @@ function ShowRow({ show, accent, mobile, onPick, first }) {
         <div style={{ fontFamily: '"Unbounded", sans-serif', fontWeight: 600, fontSize: 22,
           margin: '10px 0 4px', letterSpacing: '-0.02em' }}>{show.artist}</div>
         <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11,
-          color: 'rgba(154,242,232,0.6)' }}>{show.timeLabel} · {show.room}</div>
+          color: 'rgba(154,242,232,0.6)' }}>{show.doorsLabel ? `DOORS ${show.doorsLabel} · SHOW ` : ''}{show.timeLabel} · {show.room}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
           <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: '#fff' }}>
             FROM {priceFrom(show)}</span>
@@ -380,7 +380,7 @@ function ShowRow({ show, accent, mobile, onPick, first }) {
         <div style={{ fontFamily: '"Unbounded", sans-serif', fontWeight: 500, fontSize: 17,
           color: hov ? accent : '#fff', transition: 'color 0.2s' }}>{show.dateLabel}</div>
         <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11,
-          color: 'rgba(154,242,232,0.55)', marginTop: 4 }}>{show.timeLabel}</div>
+          color: 'rgba(154,242,232,0.55)', marginTop: 4 }}>{show.doorsLabel ? `DOORS ${show.doorsLabel} · SHOW ` : ''}{show.timeLabel}</div>
       </div>
       <div>
         <div style={{ fontFamily: '"Unbounded", sans-serif', fontWeight: 600, fontSize: 22,

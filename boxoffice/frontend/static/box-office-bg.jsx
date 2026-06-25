@@ -76,13 +76,23 @@ function Hud({ accent, shows }) {
     if (!next) { setDisplay('NO UPCOMING SHOWS'); return; }
 
     function tick() {
-      const diff = next._d - new Date();
-      if (diff <= 0) {
+      const now = new Date();
+      const doorsTarget = next.doorsISO ? new Date(next.doorsISO) : next._d;
+      const diffToShow = next._d - now;
+      const diffToDoors = doorsTarget - now;
+
+      if (diffToShow <= 0) {
         setLive(true);
-        setDisplay(`DOORS @ ${next.timeLabel}`);
+        setDisplay('');
+        return;
+      }
+      if (diffToDoors <= 0 && next.doorsISO) {
+        setLive(false);
+        setDisplay(`DOORS OPEN · SHOW @ ${next.timeLabel}`);
         return;
       }
       setLive(false);
+      const diff = diffToDoors;
       const d = Math.floor(diff / 86400000);
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -119,7 +129,7 @@ function Hud({ accent, shows }) {
       }}>
         <span>432.BLEU · BOX OFFICE</span>
         <span style={{ color: live ? BLEU.magenta : 'rgba(95,230,221,0.8)' }}>
-          {live ? `● LIVE · ${display}` : `▷ NEXT · ${display}`}
+          {live ? '● LIVE' : `▷ NEXT · ${display}`}
         </span>
       </div>
     </>

@@ -9,6 +9,7 @@ class Event(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     date = Column(DateTime, nullable=False)
+    doors_time = Column(DateTime, nullable=True)
     description = Column(String, default="")
     is_active = Column(Boolean, default=True)
     tiers = relationship("TicketTier", back_populates="event")

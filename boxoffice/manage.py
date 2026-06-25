@@ -2,7 +2,8 @@
 """
 432 BLEU Box Office — management CLI
 Usage:
-  python manage.py create-event "Show Name" 2026-07-04 "Optional description"
+  python manage.py create-event "Show Name" 2026-07-04 "Optional description" ["2026-07-04 20:00"]
+  python manage.py set-doors-time <event-id> "2026-07-04 20:00"
   python manage.py list-events
   python manage.py sales <event-id>
   python manage.py deactivate <event-id>
@@ -29,19 +30,22 @@ def init_db():
     print("Database tables created.")
 
 
-def create_event(name, date_str, description=""):
+def _parse_date(date_str):
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Unrecognized date format: {date_str}")
+
+
+def create_event(name, date_str, description="", doors_str=None):
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
-            try:
-                date = datetime.strptime(date_str, fmt)
-                break
-            except ValueError:
-                continue
-        else:
-            raise ValueError(f"Unrecognized date format: {date_str}")
-        event = Event(name=name, date=date, description=description)
+        date = _parse_date(date_str)
+        doors = _parse_date(doors_str) if doors_str else None
+        event = Event(name=name, date=date, doors_time=doors, description=description)
         db.add(event)
         db.flush()
         tiers = [
@@ -90,6 +94,20 @@ def sales_report(event_id):
             total += revenue
         print("  " + "─" * 48)
         print(f"  {'Total revenue':<20}              ${total/100:>8.2f}\n")
+    finally:
+        db.close()
+
+
+def set_doors_time(event_id, doors_str):
+    db = SessionLocal()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            print("Event not found.")
+            return
+        event.doors_time = _parse_date(doors_str)
+        db.commit()
+        print(f"Event #{event_id} doors set to {doors_str}")
     finally:
         db.close()
 
@@ -225,9 +243,16 @@ if __name__ == "__main__":
         init_db()
     elif cmd == "create-event":
         if len(sys.argv) < 4:
-            print('Usage: python manage.py create-event "Name" YYYY-MM-DD ["description"]')
+            print('Usage: python manage.py create-event "Name" YYYY-MM-DD ["description"] ["YYYY-MM-DD HH:MM doors"]')
         else:
-            create_event(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
+            create_event(sys.argv[2], sys.argv[3],
+                         sys.argv[4] if len(sys.argv) > 4 else "",
+                         sys.argv[5] if len(sys.argv) > 5 else None)
+    elif cmd == "set-doors-time":
+        if len(sys.argv) < 4:
+            print('Usage: python manage.py set-doors-time <event-id> "YYYY-MM-DD HH:MM"')
+        else:
+            set_doors_time(int(sys.argv[2]), sys.argv[3])
     elif cmd == "list-events":
         list_events()
     elif cmd == "sales":
