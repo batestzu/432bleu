@@ -140,7 +140,7 @@ function Nav({ accent, mobile }) {
       {!mobile &&
       <div style={{ display: 'flex', gap: 30, fontFamily: '"JetBrains Mono", monospace',
         fontSize: 11, letterSpacing: '0.22em', color: 'rgba(154,242,232,0.7)' }}>
-          {[['CALENDAR', '#'], ['THE ROOM', 'https://play.432bleu.com'], ['MEMBERSHIP', '/membership']].map(([x, href]) =>
+          {[['THE ROOM', 'https://play.432bleu.com'], ['MEMBERSHIP', '/membership']].map(([x, href]) =>
         <a key={x} href={href} style={{ color: 'inherit', textDecoration: 'none' }}
         onMouseEnter={(e) => e.currentTarget.style.color = accent}
         onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(154,242,232,0.7)'}>{x}</a>
