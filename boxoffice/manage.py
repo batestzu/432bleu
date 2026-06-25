@@ -7,6 +7,9 @@ Usage:
   python manage.py list-events
   python manage.py sales <event-id>
   python manage.py deactivate <event-id>
+  python manage.py list-tickets <email>
+  python manage.py resend-ticket <code>
+  python manage.py issue-ticket <event-id> <tier-name> <email> "Name"
   python manage.py create-membership-tier "season" "Season Pass" 1000 month "Optional description"
   python manage.py register-membership-tier "season" price_xxx ["Label override"] ["description"]
   python manage.py list-membership-tiers
@@ -22,6 +25,8 @@ os.environ.setdefault("DATABASE_URL", "postgresql://boxoffice:boxoffice@localhos
 
 from app.database import engine, SessionLocal, Base
 from app.models import Event, TicketTier, Ticket, MembershipTier, Membership
+from app.code_gen import generate_code
+from app.email_client import send_ticket_email
 from sqlalchemy import func
 
 
@@ -224,6 +229,75 @@ def deactivate_membership_tier(tier_id):
         db.close()
 
 
+def list_tickets(email):
+    db = SessionLocal()
+    try:
+        tickets = db.query(Ticket).filter(Ticket.email == email).order_by(Ticket.created_at.desc()).all()
+        if not tickets:
+            print(f"No tickets found for {email}")
+            return
+        for t in tickets:
+            print(f"  #{t.id}  code={t.code}  tier={t.tier.label}  event={t.tier.event.name}  created={t.created_at.strftime('%Y-%m-%d %H:%M')}")
+    finally:
+        db.close()
+
+
+def resend_ticket(code):
+    db = SessionLocal()
+    try:
+        ticket = db.query(Ticket).filter(Ticket.code == code).first()
+        if not ticket:
+            print(f"No ticket with code {code}")
+            return
+        event = ticket.tier.event
+        send_ticket_email(
+            to_email=ticket.email,
+            name=ticket.name,
+            event_name=event.name,
+            event_date=event.date.strftime("%B %d, %Y"),
+            tier_label=ticket.tier.label,
+            code=ticket.code,
+        )
+        print(f"Resent ticket {code} to {ticket.email}")
+    finally:
+        db.close()
+
+
+def issue_ticket(event_id, tier_name, email, name):
+    db = SessionLocal()
+    try:
+        tier = db.query(TicketTier).filter(
+            TicketTier.event_id == event_id,
+            TicketTier.name == tier_name.upper(),
+        ).first()
+        if not tier:
+            print(f"Tier '{tier_name}' not found for event #{event_id}")
+            return
+        event = db.query(Event).filter(Event.id == event_id).first()
+        for _ in range(10):
+            code = generate_code()
+            if not db.query(Ticket).filter(Ticket.code == code).first():
+                break
+        else:
+            print("Could not generate unique code")
+            return
+        ticket = Ticket(event_id=event_id, tier_id=tier.id, code=code, email=email, name=name, amount_paid_cents=0)
+        db.add(ticket)
+        tier.sold += 1
+        db.commit()
+        send_ticket_email(
+            to_email=email,
+            name=name,
+            event_name=event.name,
+            event_date=event.date.strftime("%B %d, %Y"),
+            tier_label=tier.label,
+            code=code,
+        )
+        print(f"Issued ticket {code} ({tier.label}) to {email}")
+    finally:
+        db.close()
+
+
 def list_members():
     db = SessionLocal()
     try:
@@ -265,6 +339,21 @@ if __name__ == "__main__":
             print("Usage: python manage.py deactivate <event-id>")
         else:
             deactivate(int(sys.argv[2]))
+    elif cmd == "list-tickets":
+        if len(sys.argv) < 3:
+            print("Usage: python manage.py list-tickets <email>")
+        else:
+            list_tickets(sys.argv[2])
+    elif cmd == "resend-ticket":
+        if len(sys.argv) < 3:
+            print("Usage: python manage.py resend-ticket <code>")
+        else:
+            resend_ticket(sys.argv[2])
+    elif cmd == "issue-ticket":
+        if len(sys.argv) < 6:
+            print('Usage: python manage.py issue-ticket <event-id> <tier-name> <email> "Name"')
+        else:
+            issue_ticket(int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5])
     elif cmd == "create-membership-tier":
         if len(sys.argv) < 5:
             print('Usage: python manage.py create-membership-tier "name" "Label" <price_cents> <month|year> ["description"]')
