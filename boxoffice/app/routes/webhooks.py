@@ -1,6 +1,7 @@
 import hmac
 import hashlib
 import json
+import logging
 import os
 import stripe
 from datetime import datetime, timezone
@@ -8,21 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Event, TicketTier, Ticket, MembershipTier, Membership, CryptoOrder
-from ..code_gen import generate_code
+from ..code_gen import unique_code
 from ..email_client import send_ticket_email, send_membership_email
 
 router = APIRouter()
+logger = logging.getLogger("boxoffice")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 NOWPAYMENTS_IPN_SECRET = os.getenv("NOWPAYMENTS_IPN_SECRET", "")
-
-
-def _unique_code(db: Session, model) -> str:
-    code = generate_code()
-    for _ in range(10):
-        if not db.query(model).filter(model.code == code).first():
-            return code
-        code = generate_code()
-    return code
 
 
 def _handle_ticket_checkout(db: Session, session):
@@ -36,13 +29,13 @@ def _handle_ticket_checkout(db: Session, session):
     email = meta.get("email", session.get("customer_email", ""))
     amount_paid = session.get("amount_total", 0)
 
-    tier = db.query(TicketTier).filter(TicketTier.id == tier_id).first()
+    tier = db.query(TicketTier).filter(TicketTier.id == tier_id).with_for_update().first()
     db_event = db.query(Event).filter(Event.id == event_id).first()
 
     ticket = Ticket(
         event_id=event_id,
         tier_id=tier_id,
-        code=_unique_code(db, Ticket),
+        code=unique_code(db, Ticket),
         email=email,
         name=name,
         stripe_session_id=session["id"],
@@ -62,7 +55,7 @@ def _handle_ticket_checkout(db: Session, session):
             code=ticket.code,
         )
     except Exception:
-        pass
+        logger.exception("Ticket email failed for %s (ticket %s)", email, ticket.code)
 
 
 def _handle_membership_checkout(db: Session, session):
@@ -76,15 +69,25 @@ def _handle_membership_checkout(db: Session, session):
 
     tier = db.query(MembershipTier).filter(MembershipTier.id == tier_id).first()
 
+    # Trust the subscription's real status over assuming "active" — a payment
+    # still requiring action shouldn't grant access yet
+    status = "active"
+    sub_id = session.get("subscription")
+    if sub_id:
+        try:
+            status = stripe.Subscription.retrieve(sub_id).get("status", "active")
+        except Exception:
+            logger.exception("Could not retrieve subscription %s, defaulting to active", sub_id)
+
     membership = Membership(
         tier_id=tier_id,
-        code=_unique_code(db, Membership),
+        code=unique_code(db, Membership),
         email=email,
         name=name,
         stripe_customer_id=session.get("customer"),
-        stripe_subscription_id=session.get("subscription"),
+        stripe_subscription_id=sub_id,
         stripe_session_id=session["id"],
-        status="active",
+        status=status,
     )
     db.add(membership)
     db.commit()
@@ -97,7 +100,7 @@ def _handle_membership_checkout(db: Session, session):
             code=membership.code,
         )
     except Exception:
-        pass
+        logger.exception("Membership email failed for %s (code %s)", email, membership.code)
 
 
 def _handle_subscription_updated(db: Session, subscription):
@@ -126,7 +129,10 @@ def _handle_subscription_deleted(db: Session, subscription):
 def _verify_nowpayments_sig(payload: bytes, sig: str) -> bool:
     if not NOWPAYMENTS_IPN_SECRET or not sig:
         return False
-    body = json.loads(payload)
+    try:
+        body = json.loads(payload)
+    except ValueError:
+        return False
     sorted_body = json.dumps(body, sort_keys=True, separators=(",", ":"))
     expected = hmac.new(
         NOWPAYMENTS_IPN_SECRET.encode(), sorted_body.encode(), hashlib.sha512
@@ -138,13 +144,13 @@ def _handle_crypto_ticket_finished(db: Session, order: CryptoOrder):
     if order.status == "finished":
         return
 
-    tier = db.query(TicketTier).filter(TicketTier.id == order.tier_id).first()
+    tier = db.query(TicketTier).filter(TicketTier.id == order.tier_id).with_for_update().first()
     db_event = db.query(Event).filter(Event.id == order.event_id).first()
 
     ticket = Ticket(
         event_id=order.event_id,
         tier_id=order.tier_id,
-        code=_unique_code(db, Ticket),
+        code=unique_code(db, Ticket),
         email=order.email,
         name=order.name,
         amount_paid_cents=order.amount_cents,
@@ -165,7 +171,7 @@ def _handle_crypto_ticket_finished(db: Session, order: CryptoOrder):
             code=ticket.code,
         )
     except Exception:
-        pass
+        logger.exception("Crypto ticket email failed for %s (ticket %s)", order.email, ticket.code)
 
 
 @router.post("/webhooks/nowpayments")
@@ -180,7 +186,7 @@ async def nowpayments_webhook(request: Request, db: Session = Depends(get_db)):
     order_id = event.get("order_id")
     payment_status = event.get("payment_status")
 
-    order = db.query(CryptoOrder).filter(CryptoOrder.order_id == order_id).first()
+    order = db.query(CryptoOrder).filter(CryptoOrder.order_id == order_id).with_for_update().first()
     if not order:
         return {"status": "ignored"}
 

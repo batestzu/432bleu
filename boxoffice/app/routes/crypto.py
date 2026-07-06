@@ -67,31 +67,41 @@ def create_crypto_checkout(request: Request, req: CryptoCheckoutRequest, db: Ses
     db.add(order)
     db.commit()
 
-    resp = requests.post(
-        NOWPAYMENTS_API_URL,
-        headers={"x-api-key": NOWPAYMENTS_API_KEY, "Content-Type": "application/json"},
-        json={
-            "price_amount": amount / 100,
-            "price_currency": "usd",
-            "order_id": order_id,
-            "order_description": f"{tier.label} — {event.name}",
-            "ipn_callback_url": f"{DOMAIN}/api/webhooks/nowpayments",
-            "success_url": f"{DOMAIN}/success?order_id={order_id}",
-            "cancel_url": f"{DOMAIN}/events/{req.event_id}",
-        },
-        timeout=15,
-    )
+    def _fail(detail: str):
+        # invoice never got created — drop the pending order so it doesn't linger
+        db.delete(order)
+        db.commit()
+        raise HTTPException(status_code=502, detail=detail)
+
+    try:
+        resp = requests.post(
+            NOWPAYMENTS_API_URL,
+            headers={"x-api-key": NOWPAYMENTS_API_KEY, "Content-Type": "application/json"},
+            json={
+                "price_amount": amount / 100,
+                "price_currency": "usd",
+                "order_id": order_id,
+                "order_description": f"{tier.label} — {event.name}",
+                "ipn_callback_url": f"{DOMAIN}/api/webhooks/nowpayments",
+                "success_url": f"{DOMAIN}/success?order_id={order_id}",
+                "cancel_url": f"{DOMAIN}/events/{req.event_id}",
+            },
+            timeout=15,
+        )
+    except requests.RequestException:
+        _fail("Crypto payment provider error")
+
     if not resp.ok:
         err_msg = "Crypto payment provider error"
         try:
             err_msg = resp.json().get("message", err_msg)
         except Exception:
             pass
-        raise HTTPException(status_code=502, detail=err_msg)
+        _fail(err_msg)
 
     invoice_url = resp.json().get("invoice_url")
     if not invoice_url:
-        raise HTTPException(status_code=502, detail="Crypto payment provider error")
+        _fail("Crypto payment provider error")
 
     return {"checkout_url": invoice_url}
 

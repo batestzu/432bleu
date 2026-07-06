@@ -1,3 +1,4 @@
+import logging
 import os
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -6,11 +7,12 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..limiter import limiter
 from ..models import Event, TicketTier, Ticket
-from ..code_gen import generate_code
+from ..code_gen import unique_code
 from ..email_client import send_ticket_email
 from ..cookies import set_pass_cookie
 
 router = APIRouter()
+logger = logging.getLogger("boxoffice")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 DOMAIN = os.getenv("BOXOFFICE_DOMAIN", "https://432bleu.com")
 
@@ -30,21 +32,13 @@ class CheckoutRequest(BaseModel):
     amount_cents: int  # fixed for VIP/MG, user-supplied for PWYC
 
 
-def _unique_code(db: Session) -> str:
-    for _ in range(10):
-        code = generate_code()
-        if not db.query(Ticket).filter(Ticket.code == code).first():
-            return code
-    raise RuntimeError("Could not generate unique code")
-
-
 @router.post("/tickets/free")
 @limiter.limit("5/minute")
 def claim_free_ticket(request: Request, req: FreeTicketRequest, response: Response, db: Session = Depends(get_db)):
     tier = db.query(TicketTier).filter(
         TicketTier.id == req.tier_id,
         TicketTier.event_id == req.event_id,
-    ).first()
+    ).with_for_update().first()
     if not tier:
         raise HTTPException(status_code=404, detail="Tier not found")
     if tier.name == "PWYC":
@@ -54,7 +48,7 @@ def claim_free_ticket(request: Request, req: FreeTicketRequest, response: Respon
     if tier.capacity is not None and tier.sold >= tier.capacity:
         raise HTTPException(status_code=400, detail="Sold out")
 
-    code = _unique_code(db)
+    code = unique_code(db, Ticket)
     event = db.query(Event).filter(Event.id == req.event_id).first()
 
     ticket = Ticket(
@@ -79,7 +73,8 @@ def claim_free_ticket(request: Request, req: FreeTicketRequest, response: Respon
             code=code,
         )
     except Exception:
-        pass  # ticket is created; email failure is non-fatal
+        # ticket is created; email failure is non-fatal
+        logger.exception("Free ticket email failed for %s (ticket %s)", req.email, code)
 
     set_pass_cookie(response, code)
     return {"success": True}
