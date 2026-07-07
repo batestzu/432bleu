@@ -55,6 +55,11 @@ def enter_page():
     return FileResponse("/app/frontend/enter.html")
 
 
+@app.get("/artists")
+def artists_page():
+    return FileResponse("/app/frontend/artists.html")
+
+
 @app.get("/membership")
 def membership_page():
     return FileResponse("/app/frontend/membership.html")
