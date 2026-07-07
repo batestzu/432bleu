@@ -24,6 +24,13 @@ const BOTS = parseInt(process.env.BOTS ?? "10", 10);
 const RAMP_MS = parseInt(process.env.RAMP_MS ?? "500", 10);
 const DURATION_S = parseInt(process.env.DURATION_S ?? "300", 10);
 const TEXTURE = process.env.TEXTURE ?? "male1";
+// Prod's pusher rejects mismatched versions with NEW_VERSION. The repo's checked-in
+// hash is "dev"; images get the real hash baked in at build time by messages/
+// `tag-version`, so the value below must come from the running prod image, not from
+// hashing the local tree. If prod's play image is ever rebuilt, re-derive it:
+// fetch the room URL's /assets/index-*.js bundle and grep for the lone 8-hex string
+// literal (grep -oE '"[0-9a-f]{8}"'), or pass API_VERSION explicitly.
+const API_VERSION = process.env.API_VERSION ?? (apiVersionHash === "dev" ? "17672b86" : apiVersionHash);
 
 // lab map is 40x30 tiles of 32px; walk a circle around the center
 const CX = 640, CY = 480, R = 300;
@@ -56,7 +63,7 @@ function wsUrl(n: number, x: number, y: number): string {
     p.set("left", String(x - 480));
     p.set("right", String(x + 480));
     p.set("availabilityStatus", String(AvailabilityStatus.ONLINE));
-    p.set("version", apiVersionHash);
+    p.set("version", API_VERSION);
     p.set("chatID", "");
     p.set("roomName", "");
     p.set("cameraState", "false");
@@ -104,12 +111,13 @@ async function startBot(n: number, token: string | null): Promise<void> {
         try {
             const msg = ServerToClientMessage.decode(new Uint8Array(data));
             const kind = msg.message?.$case;
+            if (process.env.DEBUG) console.log(`bot ${n}: <- ${kind}`, kind !== "batchMessage" ? JSON.stringify(msg.message).slice(0, 400) : "");
             if (kind === "roomJoinedMessage") stats.joined++;
             if (kind === "errorMessage") console.error(`bot ${n}: server error`, JSON.stringify(msg.message));
-        } catch { /* non-fatal decode noise */ }
+        } catch (e) { if (process.env.DEBUG) console.error(`bot ${n}: undecodable message (${(data as ArrayBuffer).byteLength ?? "?"} bytes): ${e}`); }
     });
     ws.on("error", (e) => { if (!alive) stats.failed++; console.error(`bot ${n}: ${e.message}`); });
-    ws.on("close", (code) => { if (alive && !shuttingDown) { stats.dropped++; console.error(`bot ${n}: dropped (code ${code})`); } });
+    ws.on("close", (code, reason) => { if (alive && !shuttingDown) { stats.dropped++; console.error(`bot ${n}: dropped (code ${code}${reason?.length ? `, reason: ${reason.toString()}` : ""})`); } });
 }
 
 let shuttingDown = false;
