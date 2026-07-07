@@ -35,6 +35,23 @@ const API_VERSION = process.env.API_VERSION ?? (apiVersionHash === "dev" ? "1767
 // lab map is 40x30 tiles of 32px; walk a circle around the center
 const CX = 640, CY = 480, R = 300;
 
+// SCATTER=1 (T1b): realistic crowd instead of one dense circle — each bot orbits its
+// own random spot on the map (~40px radius) and only walks ~20% of the time, so any
+// one viewport sees a few dozen mostly-idle avatars rather than 150 constant walkers.
+const SCATTER = process.env.SCATTER === "1";
+const WALK_PERIOD_S = 20, WALK_DUTY_S = 4;
+function isWalking(n: number): boolean {
+    return (Date.now() / 1000 + n * 1.7) % WALK_PERIOD_S < WALK_DUTY_S;
+}
+function mulberry(seed: number): () => number {
+    return () => {
+        seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
 const stats = { connected: 0, joined: 0, failed: 0, dropped: 0, msgsIn: 0, movesSent: 0 };
 const sockets: WebSocket[] = [];
 
@@ -87,8 +104,12 @@ function moveMsg(x: number, y: number): Uint8Array {
 
 async function startBot(n: number, token: string | null): Promise<void> {
     let angle = (n / BOTS) * Math.PI * 2;
-    const x0 = Math.floor(CX + R * Math.sin(angle));
-    const y0 = Math.floor(CY + R * Math.cos(angle));
+    const rand = mulberry(n + 1);
+    const cx = SCATTER ? Math.floor(120 + rand() * 1040) : CX;   // keep off map edges
+    const cy = SCATTER ? Math.floor(120 + rand() * 720) : CY;
+    const r = SCATTER ? 40 : R;
+    const x0 = Math.floor(cx + r * Math.sin(angle));
+    const y0 = Math.floor(cy + r * Math.cos(angle));
     const ws = new WebSocket(wsUrl(n, x0, y0), token ? [token] : undefined);
     ws.binaryType = "arraybuffer";
     sockets.push(ws);
@@ -99,9 +120,10 @@ async function startBot(n: number, token: string | null): Promise<void> {
         alive = true;
         const timer = setInterval(() => {
             if (ws.readyState !== WebSocket.OPEN) { clearInterval(timer); return; }
-            angle += 0.05;
-            const x = Math.floor(CX + R * Math.sin(angle));
-            const y = Math.floor(CY + R * Math.cos(angle));
+            if (SCATTER && !isWalking(n)) return;   // idle bots send nothing, like real clients
+            angle += SCATTER ? 0.15 : 0.05;
+            const x = Math.floor(cx + r * Math.sin(angle));
+            const y = Math.floor(cy + r * Math.cos(angle));
             ws.send(moveMsg(x, y));
             stats.movesSent++;
         }, 200);
