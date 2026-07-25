@@ -42,7 +42,7 @@ def claim_free_ticket(request: Request, req: FreeTicketRequest, response: Respon
     if not tier:
         raise HTTPException(status_code=404, detail="Tier not found")
     if tier.name == "PWYC":
-        raise HTTPException(status_code=400, detail="Pay What You Can requires a minimum $1 payment")
+        raise HTTPException(status_code=400, detail="Pay What You Can requires a minimum $2 payment")
     if tier.price_cents > 0:
         raise HTTPException(status_code=400, detail="This tier requires payment")
     if tier.capacity is not None and tier.sold >= tier.capacity:
@@ -93,8 +93,8 @@ def create_checkout(request: Request, req: CheckoutRequest, db: Session = Depend
         raise HTTPException(status_code=400, detail="Sold out")
 
     amount = req.amount_cents if tier.name == "PWYC" else tier.price_cents
-    if amount < 100:
-        raise HTTPException(status_code=400, detail="Minimum payment is $1.00")
+    if amount < 200:
+        raise HTTPException(status_code=400, detail="Minimum payment is $2.00")
 
     event = db.query(Event).filter(Event.id == req.event_id).first()
 

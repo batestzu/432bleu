@@ -38,7 +38,7 @@ function TicketDrawer({ show, accent, onClose }) {
     : isPwyc ? Math.round((parseFloat(pwycAmount) || 0) * 100)
     : selectedTier.priceCents;
   const canSubmit = !!selectedTier && name.trim() !== '' && email.includes('@') && !submitting
-    && !(isPwyc && amountCents < 100);
+    && !(isPwyc && amountCents < 200);
   const canSubmitCrypto = canSubmit && selectedTier && selectedTier.name !== 'GA' && !cryptoSubmitting;
   const allSoldOut = !!show && show.tiers.length > 0 && show.tiers.every(t => !t.available);
   const nameInvalid = attempted && name.trim() === '';
@@ -246,13 +246,13 @@ function TierRow({ tier, accent, selected, onSelect, pwycAmount, onPwycAmount })
           <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${accent}55`,
             paddingLeft: 10 }}>
             <span style={{ color: accent, fontFamily: '"JetBrains Mono", monospace' }}>$</span>
-            <input type="number" min="1" step="1" value={pwycAmount} placeholder="1"
+            <input type="number" min="2" step="1" value={pwycAmount} placeholder="2"
               onChange={e => onPwycAmount(e.target.value)}
               style={{ width: 70, background: 'transparent', border: 'none', outline: 'none',
                 color: '#fff', fontFamily: '"JetBrains Mono", monospace', fontSize: 15, padding: '8px 8px' }} />
           </div>
           <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
-            color: 'rgba(255,255,255,0.35)' }}>$1 minimum · tip the room</span>
+            color: 'rgba(255,255,255,0.35)' }}>$2 minimum · tip the room</span>
         </div>
       )}
     </div>
@@ -292,7 +292,7 @@ function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onCon
   const priceLabel = !tier ? '—' : amountCents === 0 ? (isPwyc ? '—' : 'FREE') : '$' + (amountCents / 100).toFixed(2);
   const btnLabel = submitting ? 'PROCESSING…'
     : !tier ? 'SELECT A TICKET'
-    : isPwyc && amountCents < 100 ? 'ENTER AN AMOUNT'
+    : isPwyc && amountCents < 200 ? 'ENTER AN AMOUNT'
     : amountCents === 0 ? 'CLAIM FREE TICKET'
     : 'SECURE TICKETS';
   const showCryptoBtn = !!tier && tier.name !== 'GA';

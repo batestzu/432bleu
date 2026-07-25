@@ -401,10 +401,10 @@
                     <label>YOUR AMOUNT</label>
                     <div class="pwyc-field">
                       <span>$</span>
-                      <input type="number" id="pwyc-amount" min="1" step="1" value=""
-                             placeholder="1" oninput="validatePwyc(this)">
+                      <input type="number" id="pwyc-amount" min="2" step="1" value=""
+                             placeholder="2" oninput="validatePwyc(this)">
                     </div>
-                    <span class="pwyc-hint">$1 minimum · tip the room</span>
+                    <span class="pwyc-hint">$2 minimum · tip the room</span>
                   </div>` : ''}
               </div>
             `;
@@ -453,10 +453,10 @@
 
     function validatePwyc(input) {
       const val = parseFloat(input.value);
-      if (val > 0 && val < 1) input.value = 1;
+      if (val > 0 && val < 2) input.value = 2;
       if (val <= 0) input.value = '';
       if (attempted) {
-        input.closest('.pwyc-field').classList.toggle('invalid', !(parseFloat(input.value) >= 1));
+        input.closest('.pwyc-field').classList.toggle('invalid', !(parseFloat(input.value) >= 2));
       }
     }
 
@@ -482,9 +482,9 @@
       if (!email || !email.includes('@')) return showError('Please enter a valid email.');
       if (selectedTier.name === 'PWYC') {
         const amount = parseFloat(document.getElementById('pwyc-amount').value) || 0;
-        const pwycInvalid = amount < 1;
+        const pwycInvalid = amount < 2;
         document.getElementById('pwyc-amount').closest('.pwyc-field').classList.toggle('invalid', pwycInvalid);
-        if (pwycInvalid) return showError('Please enter at least $1.');
+        if (pwycInvalid) return showError('Please enter at least $2.');
       }
 
       const btn = document.getElementById('submit-btn');
@@ -522,9 +522,9 @@
       let amountCents = selectedTier.price_cents;
       if (selectedTier.name === 'PWYC') {
         const amount = parseFloat(document.getElementById('pwyc-amount').value) || 0;
-        const pwycInvalid = amount < 1;
+        const pwycInvalid = amount < 2;
         document.getElementById('pwyc-amount').closest('.pwyc-field').classList.toggle('invalid', pwycInvalid);
-        if (pwycInvalid) return showError('Please enter at least $1.');
+        if (pwycInvalid) return showError('Please enter at least $2.');
         amountCents = Math.round(amount * 100);
       }
 

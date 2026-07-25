@@ -47,8 +47,8 @@ def create_crypto_checkout(request: Request, req: CryptoCheckoutRequest, db: Ses
         raise HTTPException(status_code=400, detail="Sold out")
 
     amount = req.amount_cents if tier.name == "PWYC" else tier.price_cents
-    if amount < 100:
-        raise HTTPException(status_code=400, detail="Minimum payment is $1.00")
+    if amount < 200:
+        raise HTTPException(status_code=400, detail="Minimum payment is $2.00")
     if amount < 1000:
         raise HTTPException(status_code=400, detail="Crypto payments require a minimum of $10.00 due to BTC network limits. Please use card payment or enter a higher amount.")
 
