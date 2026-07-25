@@ -88,3 +88,13 @@ class Ticket(Base):
     used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     tier = relationship("TicketTier", back_populates="tickets")
+
+
+class LoginToken(Base):
+    __tablename__ = "login_tokens"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False, index=True)
+    token_hash = Column(String, unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
