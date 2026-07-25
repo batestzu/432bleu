@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>432 BLEU — Log In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: linear-gradient(180deg, #061d28 0%, #03101a 60%, #02080e 100%);
+      background-attachment: fixed;
+      color: #fff;
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection { background: #5fe6dd; color: #02060a; }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      border: 1px solid rgba(95,230,221,0.2);
+      background: rgba(6,29,40,0.6);
+      padding: 40px 36px 36px;
+    }
+
+    .eyebrow {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      color: #5fe6dd;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 26px;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: rgba(154,242,232,0.55);
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    .field-label {
+      display: block;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: rgba(154,242,232,0.6);
+      margin-bottom: 10px;
+    }
+
+    .email-input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(95,230,221,0.2);
+      color: #fff;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 16px;
+      letter-spacing: 0.02em;
+      padding: 14px 16px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 20px;
+    }
+
+    .email-input:focus { border-color: rgba(95,230,221,0.6); }
+    .email-input::placeholder { color: rgba(255,255,255,0.2); }
+
+    .login-btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      cursor: pointer;
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.14em;
+      background: #5fe6dd;
+      color: #02060a;
+      box-shadow: 0 0 30px rgba(95,230,221,0.35);
+      transition: all 0.2s ease;
+    }
+
+    .login-btn:disabled {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.35);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    .error-msg {
+      color: #ff6b6b;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      margin-top: 14px;
+      text-align: center;
+      display: none;
+    }
+
+    .error-msg.visible { display: block; }
+
+    .sent-msg {
+      color: #5fe6dd;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      line-height: 1.7;
+      text-align: center;
+      display: none;
+    }
+
+    .sent-msg.visible { display: block; }
+
+    .no-account {
+      margin-top: 28px;
+      text-align: center;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .no-account a {
+      color: rgba(154,242,232,0.6);
+      text-decoration: none;
+    }
+
+    .no-account a:hover { color: #5fe6dd; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="eyebrow">MEMBER LOGIN</div>
+    <div class="title">Log in to 432 Bleu</div>
+    <p class="subtitle">Enter your email and we'll send you a login link.</p>
+
+    <div id="form-wrap">
+      <label class="field-label" for="email">EMAIL</label>
+      <input class="email-input" type="email" id="email" placeholder="you@example.com" autocomplete="email">
+
+      <button class="login-btn" id="login-btn" onclick="requestLink()">SEND LOGIN LINK</button>
+      <p class="error-msg" id="error-msg"></p>
+    </div>
+
+    <p class="sent-msg" id="sent-msg">Check your inbox — if that email is in our system, a login link is on its way. It works once and expires in 15 minutes.</p>
+
+    <p class="no-account">No account? <a href="/">Get a ticket here →</a></p>
+  </div>
+
+  <script>
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function clearError() {
+      document.getElementById('error-msg').classList.remove('visible');
+    }
+
+    async function requestLink() {
+      clearError();
+      const email = document.getElementById('email').value.trim();
+      if (!email || !email.includes('@')) return showError('Please enter a valid email.');
+
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      btn.textContent = 'SENDING…';
+
+      try {
+        const res = await fetch('/api/auth/request-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+
+        if (res.status === 429) {
+          showError('Too many attempts. Please try again shortly.');
+          btn.disabled = false;
+          btn.textContent = 'SEND LOGIN LINK';
+          return;
+        }
+
+        document.getElementById('form-wrap').style.display = 'none';
+        document.getElementById('sent-msg').classList.add('visible');
+      } catch {
+        showError('Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'SEND LOGIN LINK';
+      }
+    }
+
+    document.getElementById('email').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') requestLink();
+    });
+  </script>
+</body>
+</html>

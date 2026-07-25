@@ -96,3 +96,37 @@ def send_membership_email(
         html_content=body,
     )
     SendGridAPIClient(SENDGRID_API_KEY).send(message)
+
+
+def send_login_email(to_email: str, link: str) -> None:
+    safe_link = html.escape(link)
+
+    body = f"""
+    <div style="background:#02060a;color:#e0f7ff;font-family:monospace;padding:40px;max-width:600px;margin:0 auto;border:1px solid #0a2a35;">
+        <h1 style="color:#00e5ff;letter-spacing:6px;margin:0 0 4px;">432 BLEU</h1>
+        <p style="color:#555;margin:0 0 32px;letter-spacing:2px;font-size:12px;">VIRTUAL VENUE</p>
+
+        <h2 style="color:#e0f7ff;font-weight:normal;">Log in to your account.</h2>
+        <p>Click the button below to log in. This link works once and expires in 15 minutes.</p>
+
+        <div style="text-align:center;margin:28px 0;">
+            <a href="{safe_link}" style="display:inline-block;background:#00e5ff;color:#02060a;
+                padding:16px 32px;text-decoration:none;font-weight:bold;letter-spacing:2px;
+                border-radius:4px;">LOG IN</a>
+        </div>
+
+        <p style="color:#556;font-size:12px;">If you didn't request this, you can safely ignore this email.</p>
+
+        <p style="color:#333;font-size:11px;margin-top:40px;border-top:1px solid #0a2a35;padding-top:16px;">
+            This link works once and expires in 15 minutes.
+        </p>
+    </div>
+    """
+
+    message = Mail(
+        from_email=FROM_EMAIL,
+        to_emails=to_email,
+        subject="Your login link — 432 BLEU",
+        html_content=body,
+    )
+    SendGridAPIClient(SENDGRID_API_KEY).send(message)

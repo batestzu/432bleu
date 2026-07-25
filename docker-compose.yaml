@@ -546,6 +546,7 @@ services:
       SENDGRID_API_KEY: "$SENDGRID_API_KEY"
       FROM_EMAIL: tickets@432bleu.com
       STAFF_TOKEN: "$STAFF_TOKEN"
+      SESSION_SECRET_KEY: "$SESSION_SECRET_KEY"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.boxoffice.rule=Host(`boxoffice.432bleu.com`)"
