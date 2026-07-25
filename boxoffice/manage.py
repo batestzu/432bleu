@@ -15,19 +15,20 @@ Usage:
   python manage.py register-membership-tier "season" price_xxx ["Label override"] ["description"]
   python manage.py list-membership-tiers
   python manage.py members
+  python manage.py grant-membership "season" you@example.com "Your Name" [days=365]
   python manage.py deactivate-membership-tier <tier-id>
   python manage.py init-db
 """
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 os.environ.setdefault("DATABASE_URL", "postgresql://boxoffice:boxoffice@localhost:5433/boxoffice")
 
 from app.database import engine, SessionLocal, Base
 from app.models import Event, TicketTier, Ticket, MembershipTier, Membership
 from app.code_gen import generate_code
-from app.email_client import send_ticket_email
+from app.email_client import send_ticket_email, send_membership_email
 from sqlalchemy import func
 
 
@@ -326,6 +327,39 @@ def list_members():
         db.close()
 
 
+def grant_membership(tier_name, email, name, days=365):
+    """Comp/test membership — creates an active Membership with no Stripe subscription
+    behind it, so it never bills and never auto-renews. Good for staff/test accounts;
+    not a substitute for a real subscription."""
+    db = SessionLocal()
+    try:
+        tier = db.query(MembershipTier).filter(MembershipTier.name == tier_name).first()
+        if not tier:
+            print(f"Membership tier '{tier_name}' not found")
+            return
+        for _ in range(10):
+            code = generate_code()
+            if not db.query(Membership).filter(Membership.code == code).first():
+                break
+        else:
+            print("Could not generate unique code")
+            return
+        membership = Membership(
+            tier_id=tier.id,
+            code=code,
+            email=email,
+            name=name,
+            status="active",
+            current_period_end=datetime.now(timezone.utc) + timedelta(days=days),
+        )
+        db.add(membership)
+        db.commit()
+        send_membership_email(to_email=email, name=name, tier_label=tier.label, code=code)
+        print(f"Granted membership {code} ({tier.label}) to {email}, active {days} days (comp/test — no Stripe subscription behind it)")
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
     if cmd == "init-db":
@@ -400,5 +434,11 @@ if __name__ == "__main__":
             deactivate_membership_tier(int(sys.argv[2]))
     elif cmd == "members":
         list_members()
+    elif cmd == "grant-membership":
+        if len(sys.argv) < 5:
+            print('Usage: python manage.py grant-membership <tier-name> <email> "Name" [days=365]')
+        else:
+            grant_membership(sys.argv[2], sys.argv[3], sys.argv[4],
+                              int(sys.argv[5]) if len(sys.argv) > 5 else 365)
     else:
         print(__doc__)
