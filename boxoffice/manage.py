@@ -54,8 +54,8 @@ def create_event(name, date_str, description="", doors_str=None):
         db.add(event)
         db.flush()
         tiers = [
-            TicketTier(event_id=event.id, name="GA",   label="General Admission", price_cents=0,     description="Standard access to the show"),
-            TicketTier(event_id=event.id, name="PWYC", label="Pay What You Can",  price_cents=0,     description="Support the band — pay any amount"),
+            TicketTier(event_id=event.id, name="GA",   label="General Admission", price_cents=0,     description="Standard access to the show", capacity=40),
+            TicketTier(event_id=event.id, name="PWYC", label="Pay What You Can",  price_cents=0,     description="Support the band — pay any amount", capacity=60),
             TicketTier(event_id=event.id, name="VIP",  label="VIP",               price_cents=2000,  description="Access to the VIP area", capacity=50),
             TicketTier(event_id=event.id, name="MG",   label="Meet & Greet",      price_cents=15000, description="Meet the band backstage", capacity=10),
         ]
