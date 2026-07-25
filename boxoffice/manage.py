@@ -3,6 +3,7 @@
 432 BLEU Box Office — management CLI
 Usage:
   python manage.py create-event "Show Name" 2026-07-04 "Optional description" ["2026-07-04 20:00"]
+  python manage.py set-date <event-id> "2026-07-04"
   python manage.py set-doors-time <event-id> "2026-07-04 20:00"
   python manage.py list-events
   python manage.py sales <event-id>
@@ -99,6 +100,20 @@ def sales_report(event_id):
             total += revenue
         print("  " + "─" * 48)
         print(f"  {'Total revenue':<20}              ${total/100:>8.2f}\n")
+    finally:
+        db.close()
+
+
+def set_event_date(event_id, date_str):
+    db = SessionLocal()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            print("Event not found.")
+            return
+        event.date = _parse_date(date_str)
+        db.commit()
+        print(f"Event #{event_id} date set to {date_str}")
     finally:
         db.close()
 
@@ -322,6 +337,11 @@ if __name__ == "__main__":
             create_event(sys.argv[2], sys.argv[3],
                          sys.argv[4] if len(sys.argv) > 4 else "",
                          sys.argv[5] if len(sys.argv) > 5 else None)
+    elif cmd == "set-date":
+        if len(sys.argv) < 4:
+            print('Usage: python manage.py set-date <event-id> "YYYY-MM-DD"')
+        else:
+            set_event_date(int(sys.argv[2]), sys.argv[3])
     elif cmd == "set-doors-time":
         if len(sys.argv) < 4:
             print('Usage: python manage.py set-doors-time <event-id> "YYYY-MM-DD HH:MM"')
