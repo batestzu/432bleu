@@ -544,8 +544,12 @@ services:
       STRIPE_SECRET_KEY: "$STRIPE_SECRET_KEY"
       STRIPE_WEBHOOK_SECRET: "$STRIPE_WEBHOOK_SECRET"
       SENDGRID_API_KEY: "$SENDGRID_API_KEY"
-      FROM_EMAIL: tickets@432bleu.com
+      FROM_EMAIL: boxoffice@432bleu.com
       STAFF_TOKEN: "$STAFF_TOKEN"
+      SESSION_SECRET_KEY: "$SESSION_SECRET_KEY"
+      NOWPAYMENTS_API_KEY: "$NOWPAYMENTS_API_KEY"
+      NOWPAYMENTS_IPN_SECRET: "$NOWPAYMENTS_IPN_SECRET"
+
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.boxoffice.rule=Host(`boxoffice.432bleu.com`)"
