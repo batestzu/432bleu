@@ -49,7 +49,10 @@ function BoxOffice() {
     fetchShows().then(setShows).finally(() => setLoading(false));
   }, []);
 
-  const [headline, ...rest] = shows;
+  const now = new Date();
+  const upcoming = shows.filter((s) => new Date(s.dateISO) >= now);
+  const headline = upcoming[0] || shows[shows.length - 1] || null;
+  const rest = shows.filter((s) => s !== headline);
   const filtered = rest.filter((s) => {
     if (filter === 'all') return true;
     if (filter === 'available') return s.status !== 'sold-out';
