@@ -33,3 +33,5 @@ synapse/media_store/*
 play/src/i18n/ko-KR/*.backup
 owncast-data
 letsencrypt/
+
+loadtest/results/
