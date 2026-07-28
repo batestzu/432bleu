@@ -9,7 +9,7 @@ _ALPHABET = "".join(
 
 
 def generate_code() -> str:
-    return "".join(secrets.choice(_ALPHABET) for _ in range(8))
+    return "".join(secrets.choice(_ALPHABET) for _ in range(6))
 
 
 def unique_code(db, model) -> str:
