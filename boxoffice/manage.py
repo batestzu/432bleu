@@ -8,6 +8,7 @@ Usage:
   python manage.py list-events
   python manage.py sales <event-id>
   python manage.py deactivate <event-id>
+  python manage.py mark-sold-out <event-id>
   python manage.py list-tickets <email>
   python manage.py resend-ticket <code>
   python manage.py issue-ticket <event-id> <tier-name> <email> "Name"
@@ -143,6 +144,25 @@ def deactivate(event_id):
         event.is_active = False
         db.commit()
         print(f"Event #{event_id} deactivated.")
+    finally:
+        db.close()
+
+
+def mark_sold_out(event_id):
+    db = SessionLocal()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            print("Event not found.")
+            return
+        tiers = db.query(TicketTier).filter(TicketTier.event_id == event_id).all()
+        if not tiers:
+            print("Event has no ticket tiers.")
+            return
+        for tier in tiers:
+            tier.capacity = tier.sold
+        db.commit()
+        print(f"Event #{event_id} ({event.name}) marked sold out — capacity capped at current sold count for all {len(tiers)} tier(s).")
     finally:
         db.close()
 
@@ -393,6 +413,11 @@ if __name__ == "__main__":
             print("Usage: python manage.py deactivate <event-id>")
         else:
             deactivate(int(sys.argv[2]))
+    elif cmd == "mark-sold-out":
+        if len(sys.argv) < 3:
+            print("Usage: python manage.py mark-sold-out <event-id>")
+        else:
+            mark_sold_out(int(sys.argv[2]))
     elif cmd == "list-tickets":
         if len(sys.argv) < 3:
             print("Usage: python manage.py list-tickets <email>")
