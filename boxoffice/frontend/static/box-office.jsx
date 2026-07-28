@@ -283,7 +283,7 @@ function Hero({ show, accent, mobile, layout, onGet }) {
 
 function StatusPill({ status, accent }) {
   const meta = STATUS_META[status];
-  const colorMap = { cyan: accent, lime: BLEU.lime, mute: 'rgba(255,255,255,0.4)' };
+  const colorMap = { cyan: accent, lime: BLEU.lime, mute: '#ff3b3b' };
   const c = colorMap[meta.key];
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -306,7 +306,7 @@ function Calendar({ shows, accent, mobile, filter, setFilter, onPick }) {
         borderBottom: '1px solid rgba(95,230,221,0.16)', paddingBottom: 18 }}>
         <div>
           <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.3em',
-            color: accent, marginBottom: 8 }}>THE SEASON · JUN 2026</div>
+            color: accent, marginBottom: 8 }}>THE SEASON · SUMMER 2026</div>
           <h2 style={{ fontFamily: '"Unbounded", sans-serif', fontWeight: 700, fontSize: mobile ? 28 : 38,
             margin: 0, letterSpacing: '-0.03em' }}>Upcoming nights</h2>
         </div>
