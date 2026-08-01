@@ -159,3 +159,71 @@ was found by accident, and July's LiveKit outage went unnoticed for three days.
 An uptime check on `play.432bleu.com`, `boxoffice.432bleu.com` and the Owncast
 `/api/status` endpoint — even a free external pinger — would have caught all three
 incidents in under a minute. That is the highest-value item on this page and the cheapest.
+
+---
+
+## Part D — monitoring (implemented 2026-08-01: `scripts/vps/healthcheck.sh`)
+
+### Why a dead-man's switch, not just an external pinger
+
+An outside-in HTTP monitor tells you the site is unreachable. It does **not** tell you the
+house loop died while Owncast stayed up — which is a silent, show-ruining failure, and it
+happened for ~40 minutes on 2026-08-01 without anyone noticing.
+
+Inverting it covers both: cron runs `healthcheck.sh` on the VPS every 5 minutes, and the
+script pings an external URL **only when every check passes**. The external service alerts
+on the *absence* of a ping, so:
+
+| Failure | What happens | Caught? |
+|---|---|---|
+| Services down, box alive | checks fail → no ping | yes |
+| Whole box down / rebooting | cron never runs → no ping | yes |
+| Owncast up but no source | `online=false` → no ping | yes — an external HTTP check would miss this |
+| Container exited | compose ps shows it → no ping | yes |
+
+No inbound access or open ports required, and it costs nothing.
+
+### What it checks
+
+`play` (200/302 — a 302 is the healthy gate redirect), `boxoffice /api/events`, Owncast's
+API, **whether Owncast actually has a live source**, and whether any container has exited
+(ignoring `messages`, `redisinsight`, `oidc-server-mock`, which exit by design).
+
+Being unable to run a check counts as a **failure**, never a pass. A monitor that reports
+healthy because it couldn't look is worse than none.
+
+### Setup
+
+1. Create a free check at healthchecks.io (or any equivalent) and copy its ping URL.
+   **This step needs a human — it requires an account.** Period 5m, grace 15m gives an
+   alert roughly 20 minutes after a failure; tighten both before a show.
+2. On the VPS:
+
+```
+cd ~/workadventure && git pull && sudo cp scripts/vps/healthcheck.sh /home/vspot/healthcheck.sh && sudo chmod +x /home/vspot/healthcheck.sh
+```
+```
+echo 'HEALTHCHECK_PING_URL=https://hc-ping.com/YOUR-UUID' | sudo tee /home/vspot/healthcheck.conf
+```
+```
+/home/vspot/healthcheck.sh
+```
+
+That last line prints the report and exits non-zero if anything is wrong — run it once by
+hand before trusting it. Then add the cron entry with `crontab -e`:
+
+```
+*/5 * * * * /home/vspot/healthcheck.sh >> /home/vspot/healthcheck.log 2>&1
+```
+
+### Deliberately verify it fires
+
+Stop something harmless and confirm an alert actually arrives. An untested alarm is an
+assumption, and this whole document exists because of assumptions that went untested.
+
+### Optional complement
+
+The script curls the public HTTPS URLs, so it already exercises DNS, certs, Caddy, Traefik
+and the containers. An external prober (UptimeRobot free tier) adds only the
+outside-the-datacenter view — worth adding eventually, but the dead-man's switch is the
+higher-value half and should go first.
