@@ -17,7 +17,10 @@ export default defineConfig(({ mode }) => {
         server: {
             host: "0.0.0.0",
             port: 8080,
-            allowedHosts: true,
+            // `as const` keeps this as the literal `true`; without it the untyped
+            // `config` object widens it to `boolean`, which Vite's UserConfig rejects
+            // (allowedHosts is `true | string[] | undefined` -- `false` is not valid).
+            allowedHosts: true as const,
             cors: true,
             hmr: {
                 // workaround for development in docker
