@@ -483,6 +483,7 @@ services:
     # A mock server to test OpenID connect connectivity
 
   synapse:
+    restart: unless-stopped
     # Note: v1.141.0 introduces a breaking change in OIDC authentication in http with Webkit
     # See https://github.com/element-hq/synapse/pull/19309
     image: matrixdotorg/synapse:v1.140.0

@@ -35,11 +35,31 @@ file must be safe on its own.
 | `messages` | no | Build-only container, exits on purpose. |
 | `redisinsight` | no | Dev tool, not needed in prod. |
 | `oidc-server-mock` | no | Placeholder for a real IdP, not used. |
-| `synapse` | your call | Matrix chat. Add it only if in-world chat is actually in use. |
+| `synapse` | **yes** (added 2026-08-02) | Matrix chat. But see the warning below — it is not reachable in prod as configured. |
 
 `unless-stopped` (not `always`) is the right choice: it restores containers on boot and
 after crashes, but respects a deliberate `docker compose stop` — so it will not fight you
 during maintenance.
+
+### Warning: Matrix chat is not actually reachable in production
+
+`synapse` now restarts, but that only guarantees the container runs — it does not make
+in-world chat work. Matrix is still wired to the upstream **dev** domain
+`matrix.workadventure.localhost`, hardcoded in six places in `docker-compose.yaml`:
+`MATRIX_PUBLIC_URI` (141), `MATRIX_DOMAIN` (144), the Traefik router rule (~492),
+`VIRTUAL_HOST` / `LETSENCRYPT_HOST` / `SYNAPSE_SERVER_NAME` (501-504), plus play's allowed
+host list (32). Confirmed 2026-08-02 that neither `matrix.432bleu.com` nor
+`chat.432bleu.com` resolves in DNS.
+
+`MATRIX_PUBLIC_URI` is the URL the **browser** connects to, so as configured it cannot work
+for a real user: the hostname does not resolve, and it is plain `http` on an `https` page,
+which browsers block as mixed content regardless.
+
+Making Matrix chat real would need: a subdomain (`matrix.432bleu.com`) in DNS, a Caddy route
+and cert for it, those six values changed to the real domain, and `SYNAPSE_SERVER_NAME` set
+before first user registration — **it is baked into user IDs and painful to change later.**
+Same hardcoded-dev-domain class of problem as `PUBLIC_MAP_STORAGE_URL` in the megaphone
+thread. Treat it as a project, not a config tweak.
 
 **Before pulling on the VPS**, check for prod drift — this compose file has had
 uncommitted VPS-local edits before, which blocked a `git pull` in June 2026:
