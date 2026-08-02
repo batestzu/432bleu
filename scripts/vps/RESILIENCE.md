@@ -9,10 +9,16 @@ Same failure class as the 3-day silent LiveKit outage in July 2026.
 
 ---
 
-## Part A — restart policies (do this first, it is low risk)
+## Part A — restart policies (APPLIED 2026-08-02)
 
-`docker-compose.yaml` currently sets **no** `restart:` policy on any service. Add
-`restart: unless-stopped` to the production-critical ones:
+`docker-compose.yaml` originally set **no** `restart:` policy on any service — which is why
+a reboot left only livekit/redis/owncast running. `restart: unless-stopped` is now set on
+the ten production-critical services below.
+
+`redis` is deliberately set in **both** `docker-compose.yaml` and
+`docker-compose.livekit.yaml`. That is not redundant: bringing the stack up without the
+override file has happened before and caused a multi-day proximity-chat outage, so the base
+file must be safe on its own.
 
 | Service | Add policy? | Why |
 |---|---|---|

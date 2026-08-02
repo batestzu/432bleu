@@ -1,5 +1,6 @@
 services:
   reverse-proxy:
+    restart: unless-stopped
     image: traefik:v3.6.1
     expose:
       - "8080"
@@ -31,6 +32,7 @@ services:
           - "matrix.workadventure.localhost"
           - "pusher.workadventure.localhost"
   play:
+    restart: unless-stopped
     image: play/432-play:latest
     build:
       context: .
@@ -172,6 +174,7 @@ services:
       - "traefik.http.services.play-ws.loadbalancer.server.port=3001"
 
   maps:
+    restart: unless-stopped
     image: thecodingmachine/php:8.1-v4-apache-node12
     environment:
       DEBUG_MODE: "$DEBUG_MODE"
@@ -192,6 +195,7 @@ services:
       - "traefik.http.services.maps.loadbalancer.server.port=80"
 
   back:
+    restart: unless-stopped
     image: thecodingmachine/nodejs:v2-22-bullseye
     command: npm run runprod
     working_dir: /usr/src/app/back
@@ -245,6 +249,7 @@ services:
       - "traefik.http.services.back.loadbalancer.server.port=8080"
 
   map-storage:
+    restart: unless-stopped
     image: thecodingmachine/nodejs:v2-22-bullseye
     command: npm run start
     #command: npm run profile
@@ -287,6 +292,7 @@ services:
       - "traefik.http.services.map-storage-ui.loadbalancer.server.port=8080"
 
   uploader:
+    restart: unless-stopped
     image: thecodingmachine/nodejs:v2-20-bullseye
     command: npm run dev
     #command: npm run profile
@@ -333,6 +339,7 @@ services:
       - ./libs:/usr/src/libs
 
   redis:
+    restart: unless-stopped
     image: redis:6
 
   redisinsight:
@@ -344,6 +351,7 @@ services:
       - "traefik.http.services.redisinsight.loadbalancer.server.port=8001"
 
   icon:
+    restart: unless-stopped
     image: matthiasluedtke/iconserver:v3.21.0
     labels:
       - "traefik.enable=true"
@@ -527,6 +535,7 @@ services:
 #  synapsedata:
 
   postgres:
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: boxoffice
@@ -536,6 +545,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   boxoffice:
+    restart: unless-stopped
     build: ./boxoffice
     environment:
       DATABASE_URL: postgresql://boxoffice:boxoffice@postgres:5432/boxoffice
