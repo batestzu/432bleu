@@ -245,15 +245,47 @@ been read from a Claude session:
 (`play/src/pusher/enums/EnvironmentVariable.ts:136`) — but it is **never passed through in
 docker-compose.yaml**. Setting it in `.env` today does nothing.
 
-Two options:
+**Decided 2026-08-03: `MAP_EDITOR_ALLOW_ALL_USERS` for now, OIDC later.**
 
-1. **Simplest:** flip `MAP_EDITOR_ALLOW_ALL_USERS` to `"true"` at L148. Every user who can reach
-   the room can edit the map. Acceptable only because the room is already behind the ticket gate.
-2. **Tighter, one extra line:** add `MAP_EDITOR_ALLOWED_USERS: "$MAP_EDITOR_ALLOWED_USERS"` to the
-   `play` service env block, keep `ALLOW_ALL_USERS: "false"`, and list your own identifier.
+`MAP_EDITOR_ALLOWED_USERS` is now passed through (it never was), but it is **unusable until OIDC
+exists**. It matches on `userIdentifier`, and `JWTTokenManager.ts:6` documents that field as
+*"will be a email if logged in or an uuid if anonymous"* — anonymous visitors get a fresh UUID, so
+there is nothing stable to list, including your own. The `admin`/`editor` tag route is also closed:
+tags come from the admin API, `ADMIN_API_URL` is blank (`.env.template:40`), and `LocalAdmin`'s
+`getTagsList` rejects with `"No admin backoffice set!"`.
 
-Option 2 is the right long-term answer for a public venue — a paying attendee should not be able to
-repaint the stage. Option 1 is fine for the initial import if you flip it back after.
+So for now, flip the toggle for an editing session and flip it back. It is env-driven with a safe
+default (`${MAP_EDITOR_ALLOW_ALL_USERS:-false}`), so this needs no compose edit and no commit, and
+an unset variable can never ship as `true`:
+
+`grep -q '^MAP_EDITOR_ALLOW_ALL_USERS=' ~/workadventure/.env || echo 'MAP_EDITOR_ALLOW_ALL_USERS=false' >> ~/workadventure/.env`
+
+then `sed -i 's/^MAP_EDITOR_ALLOW_ALL_USERS=.*/MAP_EDITOR_ALLOW_ALL_USERS=true/' ~/workadventure/.env`,
+recreate `play`, edit the map, set it back to `false`, recreate again.
+
+Acceptable because the room sits behind the ticket gate — **verify that `/~/` is actually covered by
+the Caddy `forward_auth` before relying on it**, since the gate is configured on `/` and has only
+ever been exercised on the old `/_/global/` path.
+
+### TODO — OIDC (the real fix)
+
+Worth doing, deferred 2026-08-03. It closes this properly and unlocks more than the map editor:
+
+- `userIdentifier` becomes the login email → `MAP_EDITOR_ALLOWED_USERS` starts working
+- **`OPENID_TAGS_CLAIM` exists** (`.env.template:106`) → an IdP claim can grant the `editor`/`admin`
+  tags directly, so no admin API is needed for this
+- `DISABLE_ANONYMOUS` is a **separate** switch, so attendees keep entering anonymously through the
+  boxoffice ticket gate while only staff log in — no duplicate ticketing flow
+
+Env surface already present: `OPENID_CLIENT_ID`, `OPENID_CLIENT_SECRET`, `OPENID_CLIENT_ISSUER`,
+`OPENID_SCOPE`, `OPENID_USERNAME_CLAIM`, `OPENID_TAGS_CLAIM`, `OPENID_LOGOUT_REDIRECT_URL`
+(`.env.template:67-73, 103-106`). `oidc-server-mock` in compose is a dev placeholder, not a
+production IdP.
+
+Note the old "Keycloak-class IdPs are too RAM-heavy" objection was recorded against the **3.7GB**
+box; prod is now CPX31 with 8GB, so that constraint has changed and should be re-evaluated rather
+than assumed. Also weigh hosting auth in **boxoffice** instead — it already owns members, SendGrid
+and the cookie pattern, and auth there survives a future WorkAdventure departure.
 
 ### 3d. Storage persistence
 

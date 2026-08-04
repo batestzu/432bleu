@@ -152,9 +152,13 @@ services:
       MATRIX_DOMAIN: matrix.432bleu.com
       # oEmbed providers
       EMBEDLY_KEY: "$EMBEDLY_KEY"
-      # Map editor restrictions (allow all users when OIDC is enabled by default)
-      MAP_EDITOR_ALLOW_ALL_USERS: "false"
-      # Was read by the pusher but never passed through, so setting it in .env did nothing.
+      # Map editor restrictions.
+      # Env-driven with a safe default: flip to true in .env for an editing session, then
+      # back, without editing compose or committing. Unset always means false.
+      MAP_EDITOR_ALLOW_ALL_USERS: "${MAP_EDITOR_ALLOW_ALL_USERS:-false}"
+      # Read by the pusher but never passed through, so setting it in .env did nothing.
+      # Only usable once OIDC is configured: userIdentifier is an anonymous UUID today,
+      # and becomes the login email once OIDC is on (JWTTokenManager.ts:6).
       MAP_EDITOR_ALLOWED_USERS: "$MAP_EDITOR_ALLOWED_USERS"
       MAX_DISPLAYED_VIDEOS: ${MAX_DISPLAYED_VIDEOS:-}
 
