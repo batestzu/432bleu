@@ -11,6 +11,11 @@ services:
       - --providers.docker
       - --entryPoints.web.address=:80
       - --providers.docker.exposedbydefault=false
+      # Trust X-Forwarded-* from Caddy. Without this Traefik overwrites them from its
+      # own (plain http) entryPoint, so map-storage's `trust proxy` sees scheme=http
+      # and builds http:// WAM URLs that no longer match PUBLIC_MAP_STORAGE_URL.
+      # Safe: Traefik is only reachable via Caddy (8080:80 binds the host port).
+      - --entryPoints.web.forwardedHeaders.insecure=true
       #- --log.level=DEBUG
     labels:
       - "traefik.enable=true"
@@ -77,7 +82,8 @@ services:
       API_URL: back:50051
       DISABLE_ANONYMOUS: $DISABLE_ANONYMOUS
       #Map editor
-      PUBLIC_MAP_STORAGE_URL: "http://map-storage.workadventure.localhost"
+      # Browser-facing: MUST be https or it is blocked as mixed content on an https page.
+      PUBLIC_MAP_STORAGE_URL: "https://mapstorage.432bleu.com"
       INTERNAL_MAP_STORAGE_URL: "http://map-storage:3000"
       REDIS_HOST: redis
       ENABLE_OPENAPI_ENDPOINT: "true"
@@ -138,14 +144,18 @@ services:
       MINIMUM_DISTANCE: "${MINIMUM_DISTANCE}"
       #Chat
       MATRIX_API_URI: http://synapse:8008/
-      MATRIX_PUBLIC_URI: http://matrix.workadventure.localhost
+      # Browser-facing: MUST be https (mixed content). MATRIX_API_URI above is
+      # container-to-container and stays http.
+      MATRIX_PUBLIC_URI: https://matrix.432bleu.com
       MATRIX_ADMIN_USER: admin
       MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
-      MATRIX_DOMAIN: matrix.workadventure.localhost
+      MATRIX_DOMAIN: matrix.432bleu.com
       # oEmbed providers
       EMBEDLY_KEY: "$EMBEDLY_KEY"
       # Map editor restrictions (allow all users when OIDC is enabled by default)
       MAP_EDITOR_ALLOW_ALL_USERS: "false"
+      # Was read by the pusher but never passed through, so setting it in .env did nothing.
+      MAP_EDITOR_ALLOWED_USERS: "$MAP_EDITOR_ALLOWED_USERS"
       MAX_DISPLAYED_VIDEOS: ${MAX_DISPLAYED_VIDEOS:-}
 
       # "selfie-segmentation" or "tasks-vision"
@@ -227,7 +237,9 @@ services:
       STORE_VARIABLES_FOR_LOCAL_MAPS: "true"
       PROMETHEUS_AUTHORIZATION_TOKEN: "$PROMETHEUS_AUTHORIZATION_TOKEN"
       MAP_STORAGE_URL: "map-storage:50053"
-      PUBLIC_MAP_STORAGE_URL: "http://map-storage.workadventure.localhost"
+      # Public URL is rewritten to the internal one before fetching (GameRoom.ts:182),
+      # but it must match what the browser sees or upload-refresh signals miss.
+      PUBLIC_MAP_STORAGE_URL: "https://mapstorage.432bleu.com"
       INTERNAL_MAP_STORAGE_URL: "http://map-storage:3000"
       PLAYER_VARIABLES_MAX_TTL: $PLAYER_VARIABLES_MAX_TTL
       ENABLE_CHAT: "$ENABLE_CHAT"
@@ -282,11 +294,11 @@ services:
       - "9233:9229"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.map-storage.rule=Host(`map-storage.workadventure.localhost`)"
+      - "traefik.http.routers.map-storage.rule=Host(`mapstorage.432bleu.com`)"
       - "traefik.http.routers.map-storage.entryPoints=web"
       - "traefik.http.routers.map-storage.service=map-storage"
       - "traefik.http.services.map-storage.loadbalancer.server.port=3000"
-      - "traefik.http.routers.map-storage-ui.rule=Host(`map-storage.workadventure.localhost`) && PathPrefix(`/ui/`)"
+      - "traefik.http.routers.map-storage-ui.rule=Host(`mapstorage.432bleu.com`) && PathPrefix(`/ui/`)"
       - "traefik.http.routers.map-storage-ui.entryPoints=web"
       - "traefik.http.routers.map-storage-ui.service=map-storage-ui"
       - "traefik.http.services.map-storage-ui.loadbalancer.server.port=8080"
@@ -490,19 +502,21 @@ services:
     entrypoint: /data/start.sh
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.matrix.rule=Host(`matrix.workadventure.localhost`)"
+      - "traefik.http.routers.matrix.rule=Host(`matrix.432bleu.com`)"
       - "traefik.http.routers.matrix.entryPoints=web"
       - "traefik.http.services.matrix.loadbalancer.server.port=8008"
       - "traefik.http.routers.matrix.service=matrix"
     volumes:
       - ./synapse:/data/
       #- ./synapse/homeserver.template.yaml:/data/homeserver.template.yaml
-      - ./synapse/federation:/etc/nginx/vhost.d/matrix.workadventure.localhost
+      - ./synapse/federation:/etc/nginx/vhost.d/matrix.432bleu.com
     environment:
-      VIRTUAL_HOST: "matrix.workadventure.localhost"
+      VIRTUAL_HOST: "matrix.432bleu.com"
       VIRTUAL_PORT: 8008
-      LETSENCRYPT_HOST: "matrix.workadventure.localhost"
-      SYNAPSE_SERVER_NAME: "matrix.workadventure.localhost"
+      LETSENCRYPT_HOST: "matrix.432bleu.com"
+      # Baked into every Matrix user ID (@user:server_name). Must be correct BEFORE
+      # the first registration -- changing it later orphans every account.
+      SYNAPSE_SERVER_NAME: "matrix.432bleu.com"
       SYNAPSE_REPORT_STATS: "yes"
       MATRIX_ADMIN_USER: admin
       MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
