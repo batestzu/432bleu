@@ -17,7 +17,7 @@ Always both `-f` files — bringing the stack up without the livekit override ha
 outage before.
 
 > [!NOTE]
-> `scripts/vps/setup-map-storage-secrets.sh` does **not** rotate. It is deliberately idempotent and
+> `scripts/vps/setup-secrets.sh` does **not** rotate. It is deliberately idempotent and
 > keeps any non-empty value, so re-running is a no-op. Rotation is the `sed` above.
 
 ---
@@ -65,20 +65,29 @@ worth auditing.
 
 ## Tier 3 — baked into data; rotation is not a swap
 
-### Matrix secrets — `synapse/homeserver.template.yaml:30-32`
+### Matrix secrets — now in `.env` (migrated 2026-08-04)
 
-`registration_shared_secret`, `macaroon_secret_key`, `form_secret`.
+`MATRIX_REGISTRATION_SHARED_SECRET`, `MATRIX_MACAROON_SECRET_KEY`, `MATRIX_FORM_SECRET`.
 
 | Secret | Effect of rotating |
 |---|---|
-| `registration_shared_secret` | Safe. **Urgent** — it currently lets anyone create accounts. |
-| `macaroon_secret_key` | Invalidates every Matrix access token. Free now (no accounts), painful later. |
-| `form_secret` | Safe anytime. |
+| `MATRIX_REGISTRATION_SHARED_SECRET` | Safe. **Urgent** — it lets anyone create accounts. |
+| `MATRIX_MACAROON_SECRET_KEY` | Invalidates every Matrix access token. Free now (no accounts), painful later. |
+| `MATRIX_FORM_SECRET` | Safe anytime. |
+
+These used to be hardcoded literals in `synapse/homeserver.template.yaml`, a **committed, public**
+file. They are now `${VAR}` references resolved from `.env` by `envsubst` at container start.
+
+> [!IMPORTANT]
+> **Rotating these only takes effect when `synapse` is recreated.** `start.sh:21` renders
+> `homeserver.yaml` from the template at every start, and `synapse/homeserver.yaml` is gitignored
+> (`.gitignore:29`) — so editing the *rendered* file appears to work, leaves `git status` clean, and
+> is silently overwritten on the next restart. Always change `.env`, never `homeserver.yaml`.
 
 > [!WARNING]
-> **These live in a git-tracked file, not `.env`.** Editing them on the VPS leaves the working tree
-> dirty, so the next `git pull` conflicts — and if the change is ever committed and pushed, the new
-> secrets become public exactly like the old ones did. See "Moving Matrix secrets to .env" below.
+> **Hex values only.** `envsubst` expands unbraced `$sequences` inside values too. The old upstream
+> defaults contained fragments like `$u8` and `$~Je`, so the secret Synapse actually ran with was
+> not the secret written in the file. `openssl rand -hex 32` avoids this entirely.
 
 ### Not secrets, but same class — unrotatable after real use
 
@@ -104,25 +113,24 @@ Revoking first causes live payment or email failures in the window between.
 
 ---
 
-## Moving Matrix secrets to .env
+## Populating secrets
 
-The proper fix for the Tier 3 warning. `synapse/start.sh:21` already renders the template through
-`envsubst`, and `:9-19` hard-fails if any `${VAR}` in the template is undefined — so this is a
-supported path, not a hack.
-
-Replace the three literals in `homeserver.template.yaml`:
-
-```yaml
-registration_shared_secret: "${MATRIX_REGISTRATION_SHARED_SECRET}"
-macaroon_secret_key: "${MATRIX_MACAROON_SECRET_KEY}"
-form_secret: "${MATRIX_FORM_SECRET}"
+```
+cd ~/workadventure && git pull && bash scripts/vps/setup-secrets.sh
 ```
 
-Add all three to `.env` (and to `.env.template` as empty keys), then recreate `synapse`. After this
-the repo holds no Matrix secrets and rotation is a `.env` change like everything else.
+Idempotent — fills only what is empty, keeps what is already set, writes a timestamped `.env`
+backup, and prints whether each key was set or kept, never the value.
 
-**Because start.sh exits 1 on an undefined variable, the `.env` entries must exist before the next
-`synapse` recreate — otherwise the container fails to start.**
+> [!CAUTION]
+> **The Matrix entries must exist before `synapse` is next recreated.** `synapse/start.sh:9-19`
+> greps the template for `${VAR}` references and **exits 1** if any is undefined, so a missing entry
+> means the container will not start. `setup-secrets.sh` re-checks all three at the end and fails
+> loudly rather than letting that happen.
+
+Note this is *only* about the config rendering correctly. Synapse should still not be exposed until
+the items in `MAP-STORAGE-AND-MATRIX.md` §6a are addressed — open registration, the OIDC-mock
+startup dependency, and the wide-open room publication rules.
 
 ---
 

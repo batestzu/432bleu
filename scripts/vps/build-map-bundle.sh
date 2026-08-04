@@ -137,7 +137,7 @@ MS_PASS=$(grep -E '^MAP_STORAGE_AUTH_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= 
 
 if [ -z "$MS_USER" ] || [ -z "$MS_PASS" ]; then
     echo "ERROR: MAP_STORAGE_AUTH_USER/PASSWORD empty in .env." >&2
-    echo "       Run: bash scripts/vps/setup-map-storage-secrets.sh" >&2
+    echo "       Run: bash scripts/vps/setup-secrets.sh" >&2
     exit 1
 fi
 
