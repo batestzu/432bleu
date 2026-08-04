@@ -13,11 +13,29 @@
 # starter/, lab/ and Tuto/ are Tiled maps in .json form, and map-storage rejects any
 # .json that looks like a map (UploadController.ts:139-152), failing the whole upload.
 
+#
+# Usage:
+#   bash scripts/vps/build-map-bundle.sh [output.zip]            # build only
+#   bash scripts/vps/build-map-bundle.sh [output.zip] --upload   # build then upload
+#
+# --upload reads MAP_STORAGE_AUTH_USER/PASSWORD from .env and feeds them to curl via a
+# config file on stdin, so the password never appears in argv (visible in `ps`) or in
+# shell history.
+
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MAPS_DIR="$REPO_ROOT/maps"
 OUT="${1:-$REPO_ROOT/concert-bundle.zip}"
+DO_UPLOAD=0
+[ "${2:-}" = "--upload" ] && DO_UPLOAD=1
+
+for cmd in zip unzip python3 curl; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "ERROR: '$cmd' not installed. Run: sudo apt-get update && sudo apt-get install -y zip unzip" >&2
+        exit 1
+    fi
+done
 
 cd "$MAPS_DIR"
 
@@ -99,9 +117,49 @@ sys.exit(0 if isinstance(d,dict) and 'layers' in d and 'tilesets' in d else 1)
     echo "$BAD_JSON" | sed 's/^/  /'
 fi
 
-cat <<EOF
+if [ "$DO_UPLOAD" = "0" ]; then
+    cat <<EOF
 
-Upload with (curl will prompt for the password -- do not inline it):
+Built only. To upload, re-run with --upload, or by hand (let curl PROMPT for the
+password -- inlining it puts it in shell history and in \`ps\`):
 
   curl -u \$MAP_STORAGE_AUTH_USER -F "file=@$OUT" -F "directory=" https://mapstorage.432bleu.com/upload
 EOF
+    exit 0
+fi
+
+# ---- upload ----------------------------------------------------------------
+ENV_FILE="$REPO_ROOT/.env"
+[ -f "$ENV_FILE" ] || { echo "ERROR: $ENV_FILE not found; cannot read credentials" >&2; exit 1; }
+
+MS_USER=$(grep -E '^MAP_STORAGE_AUTH_USER=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+MS_PASS=$(grep -E '^MAP_STORAGE_AUTH_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+
+if [ -z "$MS_USER" ] || [ -z "$MS_PASS" ]; then
+    echo "ERROR: MAP_STORAGE_AUTH_USER/PASSWORD empty in .env." >&2
+    echo "       Run: bash scripts/vps/setup-map-storage-secrets.sh" >&2
+    exit 1
+fi
+
+echo
+echo "Uploading to https://mapstorage.432bleu.com/upload ..."
+
+# -K - reads config from stdin, keeping credentials out of argv.
+HTTP_CODE=$(printf 'user = "%s:%s"\n' "$MS_USER" "$MS_PASS" | curl -sS -K - \
+    -o /tmp/map-upload-response.txt -w '%{http_code}' \
+    -F "file=@$OUT" -F "directory=" \
+    https://mapstorage.432bleu.com/upload)
+
+echo "HTTP $HTTP_CODE"
+echo "--- response ---"
+head -c 2000 /tmp/map-upload-response.txt; echo
+
+if [ "$HTTP_CODE" != "200" ]; then
+    echo >&2
+    echo "Upload FAILED. Nothing was changed server-side on a validation error." >&2
+    exit 1
+fi
+
+echo
+echo "Uploaded. Verify the generated WAM and the map list:"
+echo "  curl -s https://mapstorage.432bleu.com/maps"
