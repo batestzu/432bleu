@@ -285,6 +285,24 @@ defer.
 
 So `concert.json` → `concert.tmj`.
 
+> [!IMPORTANT]
+> **Do the repo rename at cutover, not before.** The `maps` container serves
+> `maps.432bleu.com/concert.json`, which is exactly what the currently live `START_ROOM_URL`
+> points at — and WorkAdventure sends returning visitors back to their last room regardless of
+> `START_ROOM_URL`. Renaming the file in git 404s the live room on the next routine `git pull`
+> on the VPS, before the `/~/` path is ready to receive anyone.
+>
+> `scripts/vps/build-map-bundle.sh` therefore does the rename **inside the bundle only**, staging
+> `concert.json` as `concert.tmj` in a temp directory. The repo keeps `concert.json` and stays
+> deployable at every commit. At cutover, rename the repo file together with `START_ROOM_URL`
+> **and** the `setup-prod.py:120-121` literal that regenerates it.
+>
+> Verified 2026-08-03: boxoffice links all point at bare `https://play.432bleu.com` with no room
+> path (`enter.html:195`, `success.html:22`, `membership-success.html:22`, `box-office.jsx:146`,
+> `email_client.py:8`), so **no ticket or email links need changing** — the room is controlled
+> entirely by `START_ROOM_URL`. That makes the cutover a one-variable change, better than this
+> plan originally assumed.
+
 **Considered and rejected 2026-08-03: patching out the rejection instead.** It is technically a
 small change, but `.tmj` is not one validation check — it is the key the WAM-pairing logic runs on,
 assumed at 10+ sites across three files:
@@ -379,6 +397,40 @@ change does not break the gate. But re-verify a real ticketed arrival lands corr
 ---
 
 ## 6. Matrix subdomain
+
+> [!WARNING]
+> **Do NOT add the `matrix.432bleu.com` Caddy block until the items in §6a are fixed.**
+> The compose and template changes are inert on their own — Caddy is the switch that actually
+> exposes Synapse to the internet. Ship the map-storage half first; it is what unblocks the
+> megaphone. Matrix can follow once its config is production-shaped.
+
+### 6a. Blockers found 2026-08-03 while applying the diff
+
+Reading `synapse/start.sh` and `homeserver.template.yaml` turned up five things that make the
+current Synapse config unsafe or unable to start. None of these were known when this plan was
+first written.
+
+1. **Synapse cannot start without the OIDC mock.** `synapse/start.sh:27` blocks on
+   `http://oidc.workadventure.localhost/.well-known/openid-configuration` and **exits 1** after 120
+   seconds. `oidc-server-mock` is deliberately left with restart policy `no`, so after any reboot it
+   is down and Synapse dies on boot. Either remove that wait loop or drop the OIDC provider block
+   (`homeserver.template.yaml:44-58`), which points at the same mock.
+2. **Open registration.** `enable_registration: true` **and**
+   `enable_registration_without_verification: true`. On a publicly reachable homeserver that is an
+   open account farm for spammers. Must be `false` (or gated) before exposure.
+3. **Committed dev secrets.** `registration_shared_secret`, `macaroon_secret_key` and `form_secret`
+   are hardcoded upstream dev values at `homeserver.template.yaml:30-32` — **in git, in a public
+   repo**. `registration_shared_secret` alone lets anyone create accounts regardless of item 2.
+   These must be rotated to `openssl rand -hex 32` values sourced from `.env`, not merely edited,
+   because the old ones are already published in history.
+4. **Public room publication is wide open** — `room_list_publication_rules: allow`, with an inline
+   comment that literally reads "Development server only".
+5. **Dev junk in `auto_join_rooms`** — `#exampleroom:example.com`, `#anotherexampleroom:example.com`.
+
+Item 3 is the one to treat as urgent independent of this plan: those secrets are public today, even
+though nothing is exposed yet.
+
+### 6b. Domain changes (applied, inert until Caddy)
 
 Same treatment, `matrix.432bleu.com`. Memory recorded six places; there are **eight** — two of them
 are encoded in *filenames*, which is easy to miss:
