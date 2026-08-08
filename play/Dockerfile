@@ -10,7 +10,13 @@ RUN npm run tag-version && npm run ts-proto
 
 # typescript build
 FROM --platform=$BUILDPLATFORM node:20.18-bullseye-slim AS builder
-ARG NODE_OPTIONS="--max-old-space-size=2048"
+ARG NODE_OPTIONS="--max-old-space-size=4096"
+# Production sourcemaps are what made this build OOM: vite.config.mts:34 turns
+# them on unless GENERATE_SOURCEMAP=false, and emitting them for the ~3400-module
+# Phaser/Svelte bundle exhausted a 6GB heap during "rendering chunks". They are
+# also pointless here -- SENTRY_DSN_FRONT is empty, so nothing consumes them.
+# Override to "true" on the build command if you ever need to debug prod JS.
+ARG GENERATE_SOURCEMAP="false"
 WORKDIR /usr/src
 RUN apt-get update && apt-get install -y git
 COPY package.json package-lock.json ./
@@ -29,6 +35,7 @@ COPY play ./play
 COPY --from=proto-builder /usr/src/generated play/src/messages/generated
 ENV NODE_ENV=production
 RUN export NODE_OPTIONS="$NODE_OPTIONS" && \
+    export GENERATE_SOURCEMAP="$GENERATE_SOURCEMAP" && \
     cd play && \
     npm run typesafe-i18n && \
     npm run build-iframe-api && \
