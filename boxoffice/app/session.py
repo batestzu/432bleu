@@ -7,6 +7,11 @@ COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", ".432bleu.com")
 SESSION_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "")
 
+# An empty key would make session cookies forgeable by anyone who has read this
+# file — refuse to start rather than silently sign with "".
+if not SESSION_SECRET_KEY:
+    raise RuntimeError("SESSION_SECRET_KEY is empty — set it in .env before starting boxoffice")
+
 _serializer = URLSafeTimedSerializer(SESSION_SECRET_KEY, salt="bleu-session")
 
 
