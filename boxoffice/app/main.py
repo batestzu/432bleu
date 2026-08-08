@@ -76,6 +76,11 @@ def login_page():
     return FileResponse("/app/frontend/login.html")
 
 
+@app.get("/privacy")
+def privacy_page():
+    return FileResponse("/app/frontend/privacy.html")
+
+
 @app.get("/account")
 def account_page():
     return FileResponse("/app/frontend/account.html")

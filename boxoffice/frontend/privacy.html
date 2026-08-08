@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>432 BLEU — Privacy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100%;
+      background: linear-gradient(180deg, #061d28 0%, #03101a 60%, #02080e 100%);
+      background-attachment: fixed;
+      color: #fff;
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection { background: #5fe6dd; color: #02060a; }
+
+    body { display: flex; justify-content: center; padding: 48px 24px 80px; }
+
+    .page { width: 100%; max-width: 720px; }
+
+    .eyebrow {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      color: #5fe6dd;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 26px;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .updated {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: rgba(154,242,232,0.55);
+      letter-spacing: 0.06em;
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      color: #5fe6dd;
+      margin: 36px 0 14px;
+      text-transform: uppercase;
+    }
+
+    p, li {
+      font-size: 15px;
+      line-height: 1.75;
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 12px;
+    }
+
+    ul { padding-left: 20px; margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+
+    strong { color: #fff; }
+
+    a { color: #5fe6dd; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 16px;
+      font-size: 13px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border: 1px solid rgba(95,230,221,0.16);
+      line-height: 1.5;
+      color: rgba(255,255,255,0.85);
+      vertical-align: top;
+    }
+
+    th {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: #5fe6dd;
+      text-transform: uppercase;
+    }
+
+    .back {
+      display: inline-block;
+      margin-top: 48px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="eyebrow">432 BLEU</div>
+    <h1>Privacy Policy</h1>
+    <div class="updated">LAST UPDATED — 2026-08-08</div>
+
+    <p>432 Bleu runs a virtual venue. This page says what we collect, why, who touches it,
+    and how to get it back or get rid of it. It is short because we collect very little.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><strong>Email address and name</strong> — when you buy a ticket or membership, or log in.
+        Used to deliver your ticket code, receipts, and account access. Legal basis: performing
+        the contract you asked for. No consent popup is required for this and none is shown.</li>
+      <li><strong>Purchase records</strong> — which event, which tier, amount paid, ticket code,
+        and when it was used. Kept for accounting.</li>
+      <li><strong>IP addresses</strong> — processed transiently to rate-limit logins and purchases
+        (security; legitimate interest). Not used for profiling.</li>
+      <li><strong>Login links</strong> — signing in emails you a one-time link. The token is stored
+        hashed, expires in 15 minutes, and the record is deleted within 24 hours.</li>
+    </ul>
+    <p>Attending a show does <strong>not</strong> require an account. Inside the venue you appear
+    under a display name you choose; we do not link it to your identity.</p>
+
+    <h2>Cookies</h2>
+    <p>Two, both strictly necessary — which is why there is no cookie banner:</p>
+    <table>
+      <tr><th>Cookie</th><th>Purpose</th><th>Lifetime</th></tr>
+      <tr><td>bleu_pass</td><td>Holds your ticket code so the venue door recognizes you</td><td>180 days</td></tr>
+      <tr><td>bleu_session</td><td>Keeps you logged in to your account</td><td>30 days</td></tr>
+    </table>
+    <p>No analytics cookies, no ad trackers, no third-party pixels.</p>
+
+    <h2>Who else touches your data</h2>
+    <table>
+      <tr><th>Service</th><th>What they get</th><th>Why</th></tr>
+      <tr><td>Stripe</td><td>Payment details, email</td><td>Card payments. We never see your card number.</td></tr>
+      <tr><td>NOWPayments</td><td>Email, order amount</td><td>Crypto payments, if you choose them</td></tr>
+      <tr><td>SendGrid</td><td>Email address, message content</td><td>Sending tickets, receipts, and login links</td></tr>
+      <tr><td>Hetzner</td><td>Hosts our servers</td><td>Infrastructure. Servers are located in the United States (Oregon).</td></tr>
+    </table>
+    <p>We do not sell or share your data with anyone else, for any reason.
+    If you are in the EU/EEA or UK: your data is processed in the United States as described above.</p>
+
+    <h2>Your rights</h2>
+    <p>From your <a href="/account">account page</a>, self-service and immediate:</p>
+    <ul>
+      <li><strong>Export</strong> — download everything we hold about your email as JSON.</li>
+      <li><strong>Delete</strong> — strip your identity from our records. Purchase rows are kept
+        for accounting but permanently anonymized (email and name removed). If you have an active
+        paid membership, cancel it first via the billing portal.</li>
+    </ul>
+    <p>Anything else — corrections, questions, complaints — email
+    <a href="mailto:boxoffice@432bleu.com">boxoffice@432bleu.com</a>. If you are in the EU/EEA
+    you also have the right to complain to your local data protection authority.</p>
+
+    <h2>Live streams and voice</h2>
+    <p>Performances are streamed live. Voice and video chat between attendees is relayed
+    peer-to-server in real time and <strong>not recorded</strong> by us. Text chat in the venue
+    is ephemeral and not stored server-side.</p>
+
+    <a class="back" href="/">&larr; BACK TO THE BOX OFFICE</a>
+  </div>
+</body>
+</html>

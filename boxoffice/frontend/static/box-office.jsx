@@ -426,12 +426,14 @@ function FooterBlock({ accent, mobile }) {
       <div style={{ display: 'flex', gap: mobile ? 30 : 60, flexWrap: 'wrap' }}>
         {[['VISIT', ['SECTOR 11', 'THE WAREHOUSE DISTRICT', 'NO STREET NUMBER']],
         ['HOURS', ['THU–SUN', 'DOORS 23:00', 'CLOSE — ???']],
-        ['SIGNAL', ['@432.BLEU', 'JOIN THE LIST', 'PRESS / GUESTLIST']]].map(([h, items]) =>
+        ['SIGNAL', ['@432.BLEU', 'JOIN THE LIST', 'PRESS / GUESTLIST', ['PRIVACY', '/privacy']]]].map(([h, items]) =>
         <div key={h}>
             <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.28em',
             color: accent, marginBottom: 12 }}>{h}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map((x) =>
+              {items.map((x) => Array.isArray(x) ?
+            <a key={x[0]} href={x[1]} style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12,
+              color: 'rgba(154,242,232,0.65)', letterSpacing: '0.06em', textDecoration: 'none' }}>{x[0]}</a> :
             <span key={x} style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12,
               color: 'rgba(154,242,232,0.65)', letterSpacing: '0.06em' }}>{x}</span>
             )}

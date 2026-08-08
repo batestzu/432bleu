@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..limiter import limiter
-from ..models import LoginToken
+from ..models import LoginToken, Ticket, Membership, CryptoOrder
 from ..email_client import send_login_email
 from ..session import set_session_cookie, clear_session_cookie, get_current_email
 
@@ -19,6 +19,11 @@ BOXOFFICE_DOMAIN = os.getenv("BOXOFFICE_DOMAIN", "https://432bleu.com")
 
 TOKEN_TTL_MINUTES = 15
 MAX_TOKENS_PER_HOUR = 5
+
+# Login tokens are only needed for the 15-min TTL plus the 1-hour rate-limit
+# window; anything older is pure (email, timestamp) retention with no purpose.
+TOKEN_RETENTION_HOURS = 24
+ANONYMIZED_EMAIL = "deleted@anonymized.invalid"
 
 
 def _hash_token(token: str) -> str:
@@ -33,6 +38,11 @@ class RequestLinkBody(BaseModel):
 @limiter.limit("5/minute")
 def request_link(request: Request, req: RequestLinkBody, db: Session = Depends(get_db)):
     email = req.email.lower().strip()
+
+    # Opportunistic retention cleanup — keeps the table from accumulating a
+    # permanent log of every login attempt (GDPR storage limitation).
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=TOKEN_RETENTION_HOURS)
+    db.query(LoginToken).filter(LoginToken.created_at < cutoff).delete()
 
     one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
     recent_count = db.query(LoginToken).filter(
@@ -88,3 +98,92 @@ def logout():
 @router.get("/auth/me")
 def me(email: str = Depends(get_current_email)):
     return {"email": email}
+
+
+@router.get("/auth/export")
+@limiter.limit("5/minute")
+def export_data(request: Request, email: str = Depends(get_current_email), db: Session = Depends(get_db)):
+    """GDPR Art. 15/20: everything we hold about the logged-in email, as JSON."""
+    tickets = db.query(Ticket).filter(Ticket.email == email).all()
+    memberships = db.query(Membership).filter(Membership.email == email).all()
+    crypto_orders = db.query(CryptoOrder).filter(CryptoOrder.email == email).all()
+
+    return {
+        "email": email,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "tickets": [
+            {
+                "event_id": t.event_id,
+                "tier": t.tier.label if t.tier else None,
+                "code": t.code,
+                "name": t.name,
+                "amount_paid_cents": t.amount_paid_cents,
+                "used_at": t.used_at.isoformat() if t.used_at else None,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+            }
+            for t in tickets
+        ],
+        "memberships": [
+            {
+                "tier": m.tier.label if m.tier else None,
+                "code": m.code,
+                "name": m.name,
+                "status": m.status,
+                "current_period_end": m.current_period_end.isoformat() if m.current_period_end else None,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in memberships
+        ],
+        "crypto_orders": [
+            {
+                "order_id": o.order_id,
+                "kind": o.kind,
+                "name": o.name,
+                "amount_cents": o.amount_cents,
+                "status": o.status,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+            }
+            for o in crypto_orders
+        ],
+    }
+
+
+@router.post("/auth/delete-account")
+@limiter.limit("3/minute")
+def delete_account(request: Request, email: str = Depends(get_current_email), db: Session = Depends(get_db)):
+    """GDPR Art. 17: strip identity from our records.
+
+    Transactional rows (tickets, memberships, crypto orders) are kept for
+    accounting but anonymized — email and name are overwritten, so nothing ties
+    them to a person. Login tokens are deleted outright. Ticket codes remain
+    valid: they are bearer codes and carry no identity once anonymized.
+
+    Refuses while a paid membership is still active/past_due — deleting the
+    email while Stripe keeps billing would orphan the subscription. Cancel via
+    the billing portal first.
+    """
+    billing = db.query(Membership).filter(
+        Membership.email == email,
+        Membership.status.in_(["active", "past_due"]),
+    ).count()
+    if billing:
+        raise HTTPException(
+            status_code=409,
+            detail="You have an active membership. Cancel it in the billing portal first, then delete your account.",
+        )
+
+    db.query(Ticket).filter(Ticket.email == email).update(
+        {Ticket.email: ANONYMIZED_EMAIL, Ticket.name: ""}, synchronize_session=False
+    )
+    db.query(Membership).filter(Membership.email == email).update(
+        {Membership.email: ANONYMIZED_EMAIL, Membership.name: ""}, synchronize_session=False
+    )
+    db.query(CryptoOrder).filter(CryptoOrder.email == email).update(
+        {CryptoOrder.email: ANONYMIZED_EMAIL, CryptoOrder.name: ""}, synchronize_session=False
+    )
+    db.query(LoginToken).filter(LoginToken.email == email).delete(synchronize_session=False)
+    db.commit()
+
+    response = Response(status_code=200)
+    clear_session_cookie(response)
+    return response

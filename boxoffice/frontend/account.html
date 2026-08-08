@@ -71,6 +71,46 @@
     }
 
     .logout-btn:hover { border-color: #5fe6dd; color: #5fe6dd; }
+
+    .data-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid rgba(95,230,221,0.15);
+      cursor: pointer;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      background: transparent;
+      color: rgba(154,242,232,0.65);
+      transition: all 0.2s ease;
+    }
+
+    .data-btn:hover { border-color: #5fe6dd; color: #5fe6dd; }
+
+    .data-btn.danger:hover { border-color: #ff3b3b; color: #ff3b3b; }
+
+    .notice {
+      margin-top: 14px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      letter-spacing: 0.04em;
+      color: #ff3b3b;
+      display: none;
+    }
+
+    .privacy-link {
+      display: inline-block;
+      margin-top: 20px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: rgba(154,242,232,0.45);
+      text-decoration: none;
+    }
+
+    .privacy-link:hover { color: #5fe6dd; }
   </style>
 </head>
 <body>
@@ -78,6 +118,10 @@
     <div class="eyebrow">MEMBER ACCOUNT</div>
     <div class="title">Logged in as<br><span class="email" id="email"></span></div>
     <button class="logout-btn" onclick="logout()">LOG OUT</button>
+    <button class="data-btn" onclick="exportData()">EXPORT MY DATA</button>
+    <button class="data-btn danger" onclick="deleteAccount()">DELETE MY DATA</button>
+    <div class="notice" id="notice"></div>
+    <a class="privacy-link" href="/privacy">PRIVACY POLICY</a>
   </div>
 
   <script>
@@ -99,6 +143,35 @@
     async function logout() {
       await fetch('/api/auth/logout', { method: 'POST' });
       window.location.href = '/login';
+    }
+
+    function showNotice(msg) {
+      const el = document.getElementById('notice');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    async function exportData() {
+      const res = await fetch('/api/auth/export');
+      if (!res.ok) { showNotice('Export failed — try again in a minute.'); return; }
+      const blob = new Blob([JSON.stringify(await res.json(), null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '432bleu-data-export.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    async function deleteAccount() {
+      if (!confirm('Permanently remove your name and email from all our records? '
+        + 'Ticket codes stay valid but will no longer be tied to you. This cannot be undone.')) return;
+      const res = await fetch('/api/auth/delete-account', { method: 'POST' });
+      if (res.status === 409) {
+        showNotice((await res.json()).detail);
+        return;
+      }
+      if (!res.ok) { showNotice('Deletion failed — try again in a minute.'); return; }
+      window.location.href = '/';
     }
 
     init();
