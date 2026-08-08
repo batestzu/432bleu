@@ -65,14 +65,21 @@ services:
       TURN_STATIC_AUTH_SECRET: "$TURN_STATIC_AUTH_SECRET"
       MAX_PER_GROUP: "$MAX_PER_GROUP"
       MAX_USERNAME_LENGTH: "$MAX_USERNAME_LENGTH"
-      OPENID_CLIENT_ID: authorization-code-client-id
-      OPENID_CLIENT_SECRET: authorization-code-client-secret
-      OPENID_CLIENT_ISSUER: http://oidc.workadventure.localhost
+      # OIDC settings come from .env; the defaults keep the upstream dev mock working
+      # when unset, so an empty .env changes nothing. Real values (boxoffice as the
+      # provider) are wired per scripts/vps/OIDC-PLAN.md. Note the mock's scope contains
+      # its invented "tags-scope" -- a real provider gets a standard scope from .env.
+      OPENID_CLIENT_ID: ${OPENID_CLIENT_ID:-authorization-code-client-id}
+      OPENID_CLIENT_SECRET: ${OPENID_CLIENT_SECRET:-authorization-code-client-secret}
+      OPENID_CLIENT_ISSUER: ${OPENID_CLIENT_ISSUER:-http://oidc.workadventure.localhost}
       OPENID_PROFILE_SCREEN_PROVIDER: ${OPENID_PROFILE_SCREEN_PROVIDER:-}
-      OPENID_SCOPE: profile openid email tags-scope
+      OPENID_SCOPE: ${OPENID_SCOPE:-profile openid email tags-scope}
       OPENID_PROMPT: ${OPENID_PROMPT:-}
       OPENID_USERNAME_CLAIM: ${OPENID_USERNAME_CLAIM:-}
       OPENID_LOCALE_CLAIM: ${OPENID_LOCALE_CLAIM:-}
+      # Defaults to "tags" in the pusher when empty (EnvironmentVariable.ts:86);
+      # passed through so the claim name is chosen here, not by a code default.
+      OPENID_TAGS_CLAIM: ${OPENID_TAGS_CLAIM:-}
       OPENID_LOGOUT_REDIRECT_URL: "${OPENID_LOGOUT_REDIRECT_URL:-}"
 
       SECRET_KEY: "$SECRET_KEY"
@@ -146,7 +153,10 @@ services:
       MATRIX_API_URI: http://synapse:8008/
       # Browser-facing: MUST be https (mixed content). MATRIX_API_URI above is
       # container-to-container and stays http.
-      MATRIX_PUBLIC_URI: https://matrix.432bleu.com
+      # MUST stay empty until matrix.432bleu.com actually serves TLS: when non-empty,
+      # the OIDC callback redirects every login into Synapse SSO instead of returning
+      # to the room (AuthenticateController.ts:326), dead-ending staff logins.
+      MATRIX_PUBLIC_URI: ${MATRIX_PUBLIC_URI:-}
       MATRIX_ADMIN_USER: admin
       MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
       MATRIX_DOMAIN: matrix.432bleu.com
