@@ -1,10 +1,10 @@
 <script lang="ts">
     /**
-     * 432 Bleu branded error screen — "Signal Desync", shown by ErrorScreen.svelte for
-     * connection / loading failures.
+     * 432 Bleu branded error screen — "404 Room Not Found", shown by ErrorScreen.svelte for
+     * a room or map that isn't there.
      *
      * Artwork is the design file verbatim ("Desktop/432 Bleu Designs/Error Pages/
-     * 432 Bleu - Signal Desync.html"); only the text slots were made dynamic. Fonts
+     * 432 Bleu - 404 Room Not Found.html"); only the text slots were made dynamic. Fonts
      * (Unbounded, JetBrains Mono) are already loaded in play/index.html.
      *
      * The real error code and details stay on screen on purpose: a branded page
@@ -18,8 +18,8 @@
     export let onLobby: () => void = () => (window.location.href = "https://432bleu.com");
 
     // Fall back to the label this design was drawn with when there is no code.
-    $: errLabel = code || "DESYNC";
-    $: statusLabel = code ? `FAULT_${code}` : "FAULT_DESYNC";
+    $: errLabel = code || "404";
+    $: statusLabel = code ? `FAULT_${code}` : "FAULT_404";
 
     function handleKey(event: KeyboardEvent, action: () => void) {
         if (event.key === "Enter" || event.key === " ") {
@@ -74,12 +74,12 @@
   <text x="600" y="490" text-anchor="middle" font-size="11" letter-spacing="6" fill="#ff2bd6" opacity="0.85">ERR · {errLabel}</text>
 
   <g>
-    <text class="glitch-cyan" x="600" y="560" text-anchor="middle" font-family="Unbounded, sans-serif" font-weight="300" font-size="64" fill="#00f0ff" style="mix-blend-mode:screen">out of tune</text>
-    <text class="glitch-mag"  x="600" y="560" text-anchor="middle" font-family="Unbounded, sans-serif" font-weight="300" font-size="64" fill="#ff2bd6" style="mix-blend-mode:screen">out of tune</text>
-    <text x="600" y="560" text-anchor="middle" font-family="Unbounded, sans-serif" font-weight="300" font-size="64" fill="#fff">out of tune</text>
+    <text class="glitch-cyan" x="600" y="560" text-anchor="middle" font-family="Unbounded, sans-serif" font-weight="300" font-size="64" fill="#00f0ff" style="mix-blend-mode:screen">this room doesn't exist</text>
+    <text class="glitch-mag"  x="600" y="560" text-anchor="middle" font-family="Unbounded, sans-serif" font-weight="300" font-size="64" fill="#ff2bd6" style="mix-blend-mode:screen">this room doesn't exist</text>
+    <text x="600" y="560" text-anchor="middle" font-family="Unbounded, sans-serif" font-weight="300" font-size="64" fill="#fff">this room doesn't exist</text>
   </g>
 
-  <text x="600" y="600" text-anchor="middle" font-size="13" letter-spacing="4" fill="#5fe6dd" opacity="0.65">FREQUENCY OUT OF LOCK</text>
+  <text x="600" y="600" text-anchor="middle" font-size="13" letter-spacing="4" fill="#5fe6dd" opacity="0.65">ROOM NOT FOUND · CHECK YOUR LISTING</text>
   {#if details}
     <foreignObject x="240" y="612" width="720" height="26">
       <div

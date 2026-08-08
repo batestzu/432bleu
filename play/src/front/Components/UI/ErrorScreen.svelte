@@ -12,6 +12,8 @@
     import LoaderIcon from "../Icons/LoaderIcon.svelte";
     import errorGif from "./images/error.gif";
     import SignalDesyncScreen from "./SignalDesyncScreen.svelte";
+    import RoomNotFoundScreen from "./RoomNotFoundScreen.svelte";
+    import DoorsClosedScreen from "./DoorsClosedScreen.svelte";
     import { IconRefresh } from "@wa-icons";
 
     let errorScreen = $errorScreenStore;
@@ -44,13 +46,38 @@
 
     $: detailsStylized = (details ?? "").replace("{time}", `${timeVar / 1000}`);
 
-    // 432 Bleu branding: the "Signal Desync" design replaces the stock error
-    // page for hard failures. "reconnecting" and "retry" keep the plain markup
-    // on purpose -- both are transient states that resolve on their own, and a
-    // full-screen FAULT panel on a two-second blip reads as a worse outage than
-    // it is.
+    // 432 Bleu branding: the design set replaces the stock error page for hard
+    // failures. "reconnecting" and "retry" keep the plain markup on purpose --
+    // both are transient states that resolve on their own, and a full-screen
+    // FAULT panel on a two-second blip reads as a worse outage than it is.
     $: useBrandedScreen =
         $errorScreenStore?.type !== "reconnecting" && $errorScreenStore?.type !== "retry";
+
+    /**
+     * Pick the artwork that matches what actually went wrong.
+     *
+     * "Doors Closed" for refusals, "404 Room Not Found" for a room that isn't
+     * there, "Signal Desync" for everything else.
+     *
+     * The 404 case covers two shapes. An HTTP 404 arrives as code HTTP_ERROR
+     * with the status in the title (ErrorScreenStore.ts:121-128). A map that
+     * won't load arrives as NETWORK_ERROR with details `Cannot load "<url>"`
+     * (GameScene.ts:533) -- from the visitor's point of view a room whose map
+     * 404s *is* a room that doesn't exist, and a stale room link is the most
+     * likely way anyone meets an error here. Matching on the map extension is
+     * a heuristic; a genuine mid-session network drop surfaces as "retry" or
+     * "reconnecting" and never reaches this branch.
+     */
+    $: brandedScreen = (() => {
+        const err = $errorScreenStore;
+        if (!err) return SignalDesyncScreen;
+        if (err.type === "unauthorized") return DoorsClosedScreen;
+        const haystack = `${err.title ?? ""} ${err.details ?? ""}`;
+        if (err.code === "HTTP_ERROR" && /\b404\b/.test(haystack)) return RoomNotFoundScreen;
+        if (err.code === "NETWORK_ERROR" && /\.(wam|tmj|json)\b/i.test(haystack))
+            return RoomNotFoundScreen;
+        return SignalDesyncScreen;
+    })();
 </script>
 
 {#if $errorScreenStore && useBrandedScreen}
@@ -58,7 +85,8 @@
         class="errorScreen pointer-events-auto w-full absolute h-full top-0 left-0 right-0 mx-auto"
         transition:fly={{ y: -200, duration: 500 }}
     >
-        <SignalDesyncScreen
+        <svelte:component
+            this={brandedScreen}
             code={$errorScreenStore.code ?? ""}
             details={[$errorScreenStore.subtitle, detailsStylized].filter(Boolean).join(" — ")}
             retuneLabel={$errorScreenStore.buttonTitle ?? "↻ RETUNE"}
