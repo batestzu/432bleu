@@ -98,3 +98,19 @@ class LoginToken(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
+
+
+class AuthCode(Base):
+    """OIDC authorization code (see routes/oidc.py). Single-use, 60s TTL, stored
+    hashed, and bound to the client + redirect_uri + PKCE challenge it was minted
+    for — reuse or a mismatched binding is treated as an attack, not an error."""
+    __tablename__ = "auth_codes"
+    id = Column(Integer, primary_key=True)
+    code_hash = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, nullable=False)
+    client_id = Column(String, nullable=False)
+    redirect_uri = Column(String, nullable=False)
+    code_challenge = Column(String, nullable=False)  # PKCE S256 challenge
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)

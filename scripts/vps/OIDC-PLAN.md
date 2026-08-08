@@ -1,6 +1,11 @@
 # OIDC build-out: boxoffice as the identity provider
 
-Status: **planned, not started.** Written 2026-08-08.
+Status: **Phases 1-2 built** (2026-08-08). Phase 1 deployed-ready (compose passthrough,
+`1b52ca4`); Phase 2 code complete in `boxoffice/app/routes/oidc.py` with the full flow
+tested in-process (discovery → authorize → PKCE token exchange → userinfo, plus the
+open-redirect, code-reuse, and bad-client rejection paths). Phase 3 (tags) shipped with
+Phase 2 as `OIDC_STAFF_TAGS`. Remaining: Phase 4 cutover (populate .env on the VPS via
+setup-secrets.sh, set the OPENID_* values for play, run the verification ladder).
 
 Goal: give staff a real identity so `tags` can carry permissions, which unblocks two
 things that are currently impossible for *everyone including the performer*:

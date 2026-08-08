@@ -588,6 +588,14 @@ services:
       SESSION_SECRET_KEY: "$SESSION_SECRET_KEY"
       NOWPAYMENTS_API_KEY: "$NOWPAYMENTS_API_KEY"
       NOWPAYMENTS_IPN_SECRET: "$NOWPAYMENTS_IPN_SECRET"
+      # OIDC provider for WA staff login (routes/oidc.py, scripts/vps/OIDC-PLAN.md).
+      # Issuer derives from BOXOFFICE_DOMAIN above. Disabled (503) until the secret
+      # and key are set in .env via scripts/vps/setup-secrets.sh.
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-wa-play}
+      OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET:-}"
+      OIDC_PRIVATE_KEY_B64: "${OIDC_PRIVATE_KEY_B64:-}"
+      OIDC_STAFF_TAGS: "${OIDC_STAFF_TAGS:-}"
+      OIDC_REDIRECT_URIS: ${OIDC_REDIRECT_URIS:-https://play.432bleu.com/openid-callback}
 
     labels:
       - "traefik.enable=true"

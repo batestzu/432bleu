@@ -6,7 +6,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .database import engine, Base
 from .limiter import limiter
-from .routes import events, tickets, webhooks, validate, gate, membership, crypto, auth
+from .routes import events, tickets, webhooks, validate, gate, membership, crypto, auth, oidc
 
 
 @asynccontextmanager
@@ -27,6 +27,8 @@ app.include_router(gate.router, prefix="/api")
 app.include_router(membership.router, prefix="/api")
 app.include_router(crypto.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+# OIDC provider lives at the app root: /.well-known/* must be at a fixed path.
+app.include_router(oidc.router)
 
 app.mount("/static", StaticFiles(directory="/app/frontend/static"), name="static")
 

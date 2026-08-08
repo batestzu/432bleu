@@ -58,9 +58,14 @@ set_var MATRIX_REGISTRATION_SHARED_SECRET "$(openssl rand -hex 32)"
 set_var MATRIX_MACAROON_SECRET_KEY        "$(openssl rand -hex 32)"
 set_var MATRIX_FORM_SECRET                "$(openssl rand -hex 32)"
 
+echo "-- oidc provider (boxoffice)"
+# RSA signing key is base64-wrapped: multiline PEM does not survive .env/compose.
+set_var OIDC_CLIENT_SECRET    "$(openssl rand -hex 32)"
+set_var OIDC_PRIVATE_KEY_B64  "$(openssl genrsa 2048 2>/dev/null | base64 -w0)"
+
 # Fail loudly rather than letting synapse die on its next start.
 missing=""
-for key in MATRIX_REGISTRATION_SHARED_SECRET MATRIX_MACAROON_SECRET_KEY MATRIX_FORM_SECRET; do
+for key in MATRIX_REGISTRATION_SHARED_SECRET MATRIX_MACAROON_SECRET_KEY MATRIX_FORM_SECRET OIDC_CLIENT_SECRET OIDC_PRIVATE_KEY_B64; do
     val=$(grep -E "^${key}=" "$ENV_FILE" | head -1 | cut -d= -f2- || true)
     [ -z "$val" ] && missing="$missing $key"
 done

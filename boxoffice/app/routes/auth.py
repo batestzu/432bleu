@@ -71,7 +71,7 @@ def request_link(request: Request, req: RequestLinkBody, db: Session = Depends(g
 
 
 @router.get("/auth/verify")
-def verify(token: str, db: Session = Depends(get_db)):
+def verify(request: Request, token: str, db: Session = Depends(get_db)):
     login_token = db.query(LoginToken).filter(LoginToken.token_hash == _hash_token(token)).first()
     if not login_token:
         raise HTTPException(status_code=400, detail="Invalid or expired login link")
@@ -83,7 +83,16 @@ def verify(token: str, db: Session = Depends(get_db)):
     login_token.used_at = datetime.now(timezone.utc)
     db.commit()
 
-    response = RedirectResponse(f"{BOXOFFICE_DOMAIN}/account", status_code=302)
+    # If an OIDC /authorize redirect sent the user here, resume it (routes/oidc.py
+    # sets bleu_next). Same-site relative paths only — "//host" would be an open
+    # redirect. Best-effort: if the magic link was opened in a different browser,
+    # the cookie is absent and we land on /account as before.
+    next_path = request.cookies.get("bleu_next", "")
+    if not (next_path.startswith("/") and not next_path.startswith("//") and "\\" not in next_path):
+        next_path = "/account"
+
+    response = RedirectResponse(f"{BOXOFFICE_DOMAIN}{next_path}", status_code=302)
+    response.delete_cookie("bleu_next", path="/")
     set_session_cookie(response, login_token.email)
     return response
 

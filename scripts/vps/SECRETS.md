@@ -30,6 +30,15 @@ outage before.
 Nothing persists across a change. Recreate `play back map-storage`. Only consequence: the next map
 upload uses the new password.
 
+### `OIDC_CLIENT_SECRET` / `OIDC_PRIVATE_KEY_B64` (boxoffice OIDC provider)
+
+Also Tier 1, with one wrinkle each. The client secret is shared between boxoffice and the
+WA pusher (`OPENID_CLIENT_SECRET` in `.env`) — **rotate BOTH in the same edit** and recreate
+`boxoffice` + `play`, or every staff login fails with a 401 from `/token`. The RSA key signs
+id/access tokens that live at most 1 hour: rotating it invalidates outstanding tokens (staff
+mid-session in WA keep playing — WA only checks at login — but a re-login inside that hour
+would need one retry). `OIDC_STAFF_TAGS` is not a secret; edit it freely, applies on next login.
+
 ---
 
 ## Tier 2 — rotate in lockstep; logs everyone out
