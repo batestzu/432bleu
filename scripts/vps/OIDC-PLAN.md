@@ -269,8 +269,14 @@ docker compose -f docker-compose.yaml -f docker-compose.livekit.yaml up -d --for
    login page (not an error page, not Matrix).
 2. Enter the staff email → click the magic link from the inbox → should bounce through
    `/authorize` and land **back in the room**, logged in.
-3. Enter the room via `https://play.432bleu.com/~/concert.tmj` → the **map editor pencil**
+3. Enter the room via **`https://play.432bleu.com/~/concert.wam`** → the **map editor pencil**
    appears in the sidebar (that's `canEdit` from the `editor` tag — `LocalAdmin.ts:99`).
+   **The room URL is the `.wam`, NOT the `.tmj`.** map-storage lists
+   `concert.wam` → `mapUrl: "./concert.tmj"`; the `.tmj` is the map data the `.wam` points at,
+   not a room path. Asking for `/~/concert.tmj` sends WA looking for
+   `https://maps.432bleu.com/concert.tmj`, which 404s (the `maps` container still serves
+   `concert.json` — the `.tmj` rename only happens inside the upload bundle) and you get a
+   NETWORK_ERROR screen.
 4. Anonymous attendee (private window): no pencil, everything else unchanged.
 5. Megaphone: in the map editor, set room-wide megaphone `rights` to `admin` (or `editor`)
    and `scope` to `ROOM` — without `scope` the megaphone silently disables

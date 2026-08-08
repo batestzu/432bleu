@@ -11,6 +11,7 @@
     import logoImg from "../images/logo-min-white.png";
     import LoaderIcon from "../Icons/LoaderIcon.svelte";
     import errorGif from "./images/error.gif";
+    import SignalDesyncScreen from "./SignalDesyncScreen.svelte";
     import { IconRefresh } from "@wa-icons";
 
     let errorScreen = $errorScreenStore;
@@ -42,9 +43,30 @@
     }
 
     $: detailsStylized = (details ?? "").replace("{time}", `${timeVar / 1000}`);
+
+    // 432 Bleu branding: the "Signal Desync" design replaces the stock error
+    // page for hard failures. "reconnecting" and "retry" keep the plain markup
+    // on purpose -- both are transient states that resolve on their own, and a
+    // full-screen FAULT panel on a two-second blip reads as a worse outage than
+    // it is.
+    $: useBrandedScreen =
+        $errorScreenStore?.type !== "reconnecting" && $errorScreenStore?.type !== "retry";
 </script>
 
-{#if $errorScreenStore}
+{#if $errorScreenStore && useBrandedScreen}
+    <main
+        class="errorScreen pointer-events-auto w-full absolute h-full top-0 left-0 right-0 mx-auto"
+        transition:fly={{ y: -200, duration: 500 }}
+    >
+        <SignalDesyncScreen
+            code={$errorScreenStore.code ?? ""}
+            details={[$errorScreenStore.subtitle, detailsStylized].filter(Boolean).join(" — ")}
+            retuneLabel={$errorScreenStore.buttonTitle ?? "↻ RETUNE"}
+            onRetune={click}
+            onLobby={() => (window.location.href = "https://432bleu.com")}
+        />
+    </main>
+{:else if $errorScreenStore}
     <main
         class="errorScreen bg-contrast pointer-events-auto w-full text-white text-center absolute flex flex-wrap items-center justify-center h-full top-0 left-0 right-0 mx-auto overflow-scroll py-5"
         style={getBackgroundColor() != undefined ? `background-color: ${getBackgroundColor()};` : ""}
