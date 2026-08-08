@@ -189,6 +189,98 @@ the megaphone silently disables.
   actually set in the VPS `.env` before this carries staff permissions rather than just
   account pages.
 
+## Phase 4 runbook — VPS cutover
+
+All commands single-line, run as `vspot` in `~/workadventure` unless noted. Safe to stop
+after any step; nothing before step 5 changes user-visible behavior.
+
+**1. Deploy the provider code (still dark — endpoints 503 until secrets exist):**
+
+```
+cd ~/workadventure && git pull && docker compose -f docker-compose.yaml -f docker-compose.livekit.yaml build boxoffice && docker compose -f docker-compose.yaml -f docker-compose.livekit.yaml up -d boxoffice
+```
+
+Confirm dark: `curl -s -o /dev/null -w '%{http_code}\n' https://boxoffice.432bleu.com/.well-known/jwks.json` → expect **503**.
+(Discovery itself returns 200 — it is static config. jwks is the "is the key loaded" probe.)
+
+**2. Generate the provider secrets** (idempotent — keeps anything already set):
+
+```
+bash scripts/vps/setup-secrets.sh
+```
+
+**3. Light the provider up and verify:**
+
+```
+docker compose -f docker-compose.yaml -f docker-compose.livekit.yaml up -d --force-recreate boxoffice
+```
+
+```
+curl -s https://boxoffice.432bleu.com/.well-known/openid-configuration | python3 -m json.tool | head -8
+```
+
+```
+curl -s https://boxoffice.432bleu.com/.well-known/jwks.json | grep -o '"kty": *"RSA"'
+```
+
+**4. Hairpin check — the pusher must reach the public domain from INSIDE its container:**
+
+```
+docker compose -f docker-compose.yaml -f docker-compose.livekit.yaml exec play curl -s -o /dev/null -w '%{http_code}\n' https://boxoffice.432bleu.com/.well-known/openid-configuration
+```
+
+Expect **200**. If this fails (hairpin NAT), nothing after works — stop and report back.
+
+**5. Point WA at the provider.** Each line is idempotent (delete-then-append). The secret
+line copies OIDC_CLIENT_SECRET → OPENID_CLIENT_SECRET without ever printing it (two names,
+one value — see SECRETS.md):
+
+```
+sed -i '/^OPENID_CLIENT_ID=/d' .env && echo 'OPENID_CLIENT_ID=wa-play' >> .env
+```
+
+```
+sed -i '/^OPENID_CLIENT_SECRET=/d' .env && grep '^OIDC_CLIENT_SECRET=' .env | sed 's/^OIDC_/OPENID_/' >> .env
+```
+
+```
+sed -i '/^OPENID_CLIENT_ISSUER=/d' .env && echo 'OPENID_CLIENT_ISSUER=https://boxoffice.432bleu.com' >> .env
+```
+
+```
+sed -i '/^OPENID_SCOPE=/d' .env && echo 'OPENID_SCOPE=openid email profile' >> .env
+```
+
+```
+sed -i '/^OIDC_STAFF_TAGS=/d' .env && echo 'OIDC_STAFF_TAGS=YOUR-EMAIL-HERE=admin,editor' >> .env
+```
+
+(Replace YOUR-EMAIL-HERE. Multiple staff: `a@x.com=admin,editor;b@x.com=editor`.)
+
+**6. Recreate both sides.** ⚠ recreating `play` disconnects anyone in the venue — not mid-show:
+
+```
+docker compose -f docker-compose.yaml -f docker-compose.livekit.yaml up -d --force-recreate play boxoffice
+```
+
+**7. Browser verification ladder:**
+
+1. Open `https://play.432bleu.com` → menu → **Sign in**. Should land on the boxoffice
+   login page (not an error page, not Matrix).
+2. Enter the staff email → click the magic link from the inbox → should bounce through
+   `/authorize` and land **back in the room**, logged in.
+3. Enter the room via `https://play.432bleu.com/~/concert.tmj` → the **map editor pencil**
+   appears in the sidebar (that's `canEdit` from the `editor` tag — `LocalAdmin.ts:99`).
+4. Anonymous attendee (private window): no pencil, everything else unchanged.
+5. Megaphone: in the map editor, set room-wide megaphone `rights` to `admin` (or `editor`)
+   and `scope` to `ROOM` — without `scope` the megaphone silently disables
+   (`getMegaphoneUrl:9`). Button should appear for staff, absent for anonymous.
+
+**Rollback** (any point): remove the five lines added in step 5 from `.env`, recreate
+`play` — WA falls back to the inert mock defaults. The provider endpoints staying live on
+boxoffice is harmless (they only mint codes for logged-in members, and tags only come
+from OIDC_STAFF_TAGS).
+
 ## Deliberately out of scope
 
 Matrix SSO (B2/B3), turning on `DISABLE_ANONYMOUS`, and the ticket-gate path-matching hole
