@@ -34,6 +34,34 @@ def _code_grants_access(db: Session, code: str) -> bool:
     return False
 
 
+def find_access_code(db: Session, email: str):
+    """The best still-valid access code held by this email, as (code, kind).
+
+    Lets a logged-in session be turned into the bleu_pass cookie the gate checks,
+    so a member who arrived by magic link doesn't have to retype a code they own.
+    Membership wins over a ticket — it outlives any single event.
+    """
+    membership = (
+        db.query(Membership)
+        .filter(Membership.email == email, Membership.status.in_(MEMBERSHIP_ACTIVE_STATUSES))
+        .order_by(Membership.created_at.desc())
+        .first()
+    )
+    if membership:
+        return membership.code, "membership"
+
+    now = datetime.now(timezone.utc)
+    tickets = db.query(Ticket).filter(Ticket.email == email).all()
+    for ticket in tickets:
+        if not ticket.tier or not ticket.tier.event:
+            continue
+        event_start = ticket.tier.event.date.replace(tzinfo=VENUE_TZ)
+        if now < event_start + timedelta(hours=TICKET_VALID_HOURS_AFTER_EVENT):
+            return ticket.code, "ticket"
+
+    return None, None
+
+
 @router.get("/gate/check")
 def gate_check(request: Request, db: Session = Depends(get_db)):
     code = request.cookies.get(COOKIE_NAME, "").upper().strip()

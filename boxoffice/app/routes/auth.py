@@ -13,9 +13,12 @@ from ..limiter import limiter
 from ..models import LoginToken, Ticket, Membership, CryptoOrder
 from ..email_client import send_login_email
 from ..session import set_session_cookie, clear_session_cookie, get_current_email
+from ..cookies import set_pass_cookie
+from .gate import find_access_code
 
 router = APIRouter()
 BOXOFFICE_DOMAIN = os.getenv("BOXOFFICE_DOMAIN", "https://432bleu.com")
+PLAY_URL = os.getenv("PLAY_URL", "https://play.432bleu.com")
 
 TOKEN_TTL_MINUTES = 15
 MAX_TOKENS_PER_HOUR = 5
@@ -105,8 +108,24 @@ def logout():
 
 
 @router.get("/auth/me")
-def me(email: str = Depends(get_current_email)):
-    return {"email": email}
+def me(email: str = Depends(get_current_email), db: Session = Depends(get_db)):
+    code, kind = find_access_code(db, email)
+    return {"email": email, "has_access": code is not None, "access_kind": kind, "play_url": PLAY_URL}
+
+
+@router.post("/auth/room-pass")
+def room_pass(response: Response, email: str = Depends(get_current_email), db: Session = Depends(get_db)):
+    """Mint the bleu_pass gate cookie from a logged-in session.
+
+    The Caddy ticket gate only ever checks bleu_pass (gate.py::gate_check); a magic-link
+    login sets bleu_session, a different cookie. Without this, a logged-in member tapping
+    "enter the room" lands back on /enter to retype a code they already own.
+    """
+    code, kind = find_access_code(db, email)
+    if not code:
+        raise HTTPException(status_code=403, detail="No active membership or valid ticket on this account.")
+    set_pass_cookie(response, code)
+    return {"ok": True, "access_kind": kind, "play_url": PLAY_URL}
 
 
 @router.get("/auth/export")

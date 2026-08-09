@@ -56,6 +56,37 @@
 
     .title .email { color: #5fe6dd; }
 
+    .enter-btn {
+      display: block;
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 16px;
+      border: 1px solid #5fe6dd;
+      background: rgba(95,230,221,0.12);
+      cursor: pointer;
+      font-family: "Unbounded", sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.14em;
+      color: #5fe6dd;
+      text-decoration: none;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .enter-btn:hover { background: rgba(95,230,221,0.22); }
+
+    .enter-btn[disabled] { opacity: 0.5; cursor: default; }
+
+    .access-note {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      line-height: 1.6;
+      color: rgba(154,242,232,0.5);
+      margin-bottom: 20px;
+    }
+
     .logout-btn {
       width: 100%;
       padding: 16px;
@@ -117,14 +148,20 @@
   <div class="card" id="card" style="display:none;">
     <div class="eyebrow">MEMBER ACCOUNT</div>
     <div class="title">Logged in as<br><span class="email" id="email"></span></div>
+    <button class="enter-btn" id="enter-btn" onclick="enterRoom()" style="display:none;">ENTER THE ROOM</button>
+    <a class="enter-btn" id="get-ticket" href="/" style="display:none;">GET A TICKET</a>
+    <div class="access-note" id="access-note"></div>
     <button class="logout-btn" onclick="logout()">LOG OUT</button>
     <button class="data-btn" onclick="exportData()">EXPORT MY DATA</button>
     <button class="data-btn danger" onclick="deleteAccount()">DELETE MY DATA</button>
     <div class="notice" id="notice"></div>
-    <a class="privacy-link" href="/privacy">PRIVACY POLICY</a>
+    <a class="privacy-link" href="/">BOX OFFICE</a>
+    <a class="privacy-link" href="/privacy" style="margin-left:18px;">PRIVACY POLICY</a>
   </div>
 
   <script>
+    let playUrl = 'https://play.432bleu.com';
+
     async function init() {
       try {
         const res = await fetch('/api/auth/me');
@@ -133,11 +170,37 @@
           return;
         }
         const data = await res.json();
+        playUrl = data.play_url || playUrl;
         document.getElementById('email').textContent = data.email;
+        if (data.has_access) {
+          document.getElementById('enter-btn').style.display = 'block';
+          document.getElementById('access-note').textContent =
+            data.access_kind === 'membership' ? 'ACTIVE MEMBERSHIP' : 'TICKET ON FILE';
+        } else {
+          document.getElementById('get-ticket').style.display = 'block';
+          document.getElementById('access-note').textContent =
+            'NO ACTIVE MEMBERSHIP OR TICKET ON THIS ACCOUNT';
+        }
         document.getElementById('card').style.display = 'block';
       } catch {
         window.location.href = '/login';
       }
+    }
+
+    async function enterRoom() {
+      const btn = document.getElementById('enter-btn');
+      btn.disabled = true;
+      btn.textContent = 'OPENING DOORS…';
+      const res = await fetch('/api/auth/room-pass', { method: 'POST' });
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.textContent = 'ENTER THE ROOM';
+        showNotice(res.status === 403
+          ? 'No active membership or valid ticket on this account.'
+          : 'Could not open the doors — try again in a minute.');
+        return;
+      }
+      window.location.href = (await res.json()).play_url || playUrl;
     }
 
     async function logout() {
