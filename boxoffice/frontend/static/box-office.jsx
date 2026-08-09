@@ -130,7 +130,7 @@ function EmptyState({ accent }) {
 /* ───────────────────────── NAV ───────────────────────── */
 function Nav({ accent, mobile }) {
   return (
-    <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap',
       padding: mobile ? '24px 0 14px' : '34px 0 18px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontFamily: '"Unbounded", sans-serif', fontWeight: 900, fontSize: mobile ? 24 : 28,
@@ -140,16 +140,22 @@ function Nav({ accent, mobile }) {
           letterSpacing: '0.42em', paddingLeft: '0.42em', color: BLEU.magenta,
           textShadow: '0 0 12px rgba(255,43,214,0.7)' }}>BLEU</span>
       </div>
-      {!mobile &&
-      <div style={{ display: 'flex', gap: 30, fontFamily: '"JetBrains Mono", monospace',
-        fontSize: 11, letterSpacing: '0.22em', color: 'rgba(154,242,232,0.7)' }}>
-          {[['THE ROOM', 'https://play.432bleu.com'], ['MEMBERSHIP', '/membership'], ['ARTISTS', '/artists']].map(([x, href]) =>
+      {/* On mobile these wrap to their own full-width row under the logo/login row
+          (order 3 puts them last), rather than being dropped entirely. */}
+      <div style={{ display: 'flex', gap: mobile ? 0 : 30,
+        order: mobile ? 3 : 0, width: mobile ? '100%' : 'auto',
+        justifyContent: mobile ? 'space-between' : 'flex-end',
+        marginTop: mobile ? 14 : 0, paddingTop: mobile ? 12 : 0,
+        borderTop: mobile ? '1px solid rgba(95,230,221,0.16)' : 'none',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: mobile ? 10 : 11, letterSpacing: mobile ? '0.16em' : '0.22em',
+        color: 'rgba(154,242,232,0.7)' }}>
+        {[['THE ROOM', 'https://play.432bleu.com'], ['MEMBERSHIP', '/membership'], ['ARTISTS', '/artists']].map(([x, href]) =>
         <a key={x} href={href} style={{ color: 'inherit', textDecoration: 'none' }}
         onMouseEnter={(e) => e.currentTarget.style.color = accent}
         onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(154,242,232,0.7)'}>{x}</a>
         )}
-        </div>
-      }
+      </div>
       <button onClick={() => window.location.href = '/membership'}
         style={{ background: 'transparent', border: `1px solid ${accent}66`, color: accent,
         padding: mobile ? '9px 14px' : '10px 20px', cursor: 'pointer',
