@@ -108,6 +108,12 @@ class AudioContextManager {
         // We need to create a new AudioContext and verify that the context is not suspended.
         const context = new AudioContext();
         context.onstatechange = () => {
+            // Ignore the state change produced by our own close() below, otherwise a
+            // "closed" context reads as !== "suspended" and would falsely report that
+            // audio is allowed.
+            if (context.state === "closed") {
+                return;
+            }
             const isNotSuspended = context.state !== "suspended";
             isNotSuspendedAudioContextStore.set(isNotSuspended);
             if (!isNotSuspended) {
@@ -120,6 +126,22 @@ class AudioContextManager {
         };
         const isNotSuspended = context.state !== "suspended";
         isNotSuspendedAudioContextStore.set(isNotSuspended);
+
+        // Release the probe context unconditionally.
+        //
+        // close() used to live ONLY inside onstatechange above. As the caller in
+        // BrowserNoSoundInfoToast.svelte notes, onstatechange does NOT fire when the
+        // context comes up already running -- so in the common case the context was
+        // never closed. That toast polls this method every 500ms, which leaked two
+        // AudioContexts per second for as long as it was on screen. On Linux each one
+        // holds a PulseAudio sink input, so ~2 minutes of an unclicked "allow audio"
+        // prompt hit PA_MAX_INPUTS_PER_SINK (256) and no further audio stream could be
+        // created on that sink at all -- the venue went silent and stayed silent.
+        //
+        // Closing here does not lose the suspended -> running transition: the caller
+        // re-probes twice a second anyway.
+        context.close().catch(console.error);
+
         return isNotSuspended;
     }
 }
