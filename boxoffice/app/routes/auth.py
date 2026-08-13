@@ -19,6 +19,8 @@ from .gate import find_access_code
 router = APIRouter()
 BOXOFFICE_DOMAIN = os.getenv("BOXOFFICE_DOMAIN", "https://432bleu.com")
 PLAY_URL = os.getenv("PLAY_URL", "https://play.432bleu.com")
+# The concert room itself, not the bare origin — see email_client.ROOM_URL.
+ROOM_URL = os.getenv("ROOM_URL", f"{PLAY_URL.rstrip('/')}/~/concert.wam")
 
 TOKEN_TTL_MINUTES = 15
 MAX_TOKENS_PER_HOUR = 5
@@ -110,7 +112,13 @@ def logout():
 @router.get("/auth/me")
 def me(email: str = Depends(get_current_email), db: Session = Depends(get_db)):
     code, kind = find_access_code(db, email)
-    return {"email": email, "has_access": code is not None, "access_kind": kind, "play_url": PLAY_URL}
+    return {
+        "email": email,
+        "has_access": code is not None,
+        "access_kind": kind,
+        "play_url": PLAY_URL,
+        "room_url": ROOM_URL,
+    }
 
 
 @router.post("/auth/room-pass")
@@ -125,7 +133,7 @@ def room_pass(response: Response, email: str = Depends(get_current_email), db: S
     if not code:
         raise HTTPException(status_code=403, detail="No active membership or valid ticket on this account.")
     set_pass_cookie(response, code)
-    return {"ok": True, "access_kind": kind, "play_url": PLAY_URL}
+    return {"ok": True, "access_kind": kind, "play_url": PLAY_URL, "room_url": ROOM_URL}
 
 
 @router.get("/auth/export")

@@ -7,6 +7,11 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
 FROM_EMAIL = os.getenv("FROM_EMAIL", "tickets@432bleu.com")
 PLAY_URL = os.getenv("PLAY_URL", "https://play.432bleu.com")
 
+# Where a ticket/membership holder is actually sent. PLAY_URL is the bare origin;
+# the room itself is a map path (.wam, not .tmj) and landing on the origin drops
+# people at the default room instead of the concert.
+ROOM_URL = os.getenv("ROOM_URL", f"{PLAY_URL.rstrip('/')}/~/concert.wam")
+
 
 def send_ticket_email(
     to_email: str,
@@ -38,7 +43,7 @@ def send_ticket_email(
         </div>
 
         <p>Enter this code at the door:</p>
-        <p><a href="{PLAY_URL}" style="color:#00e5ff;">{PLAY_URL}</a></p>
+        <p><a href="{ROOM_URL}" style="color:#00e5ff;">{ROOM_URL}</a></p>
 
         <p style="color:#333;font-size:11px;margin-top:40px;border-top:1px solid #0a2a35;padding-top:16px;">
             Single-use code. Do not share. See you in there.
@@ -80,7 +85,7 @@ def send_membership_email(
         </div>
 
         <p>This code gets you into every show while your membership is active:</p>
-        <p><a href="{PLAY_URL}" style="color:#00e5ff;">{PLAY_URL}</a></p>
+        <p><a href="{ROOM_URL}" style="color:#00e5ff;">{ROOM_URL}</a></p>
 
         <p style="color:#333;font-size:11px;margin-top:40px;border-top:1px solid #0a2a35;padding-top:16px;">
             Your card will be billed automatically each period. Manage or cancel anytime from the

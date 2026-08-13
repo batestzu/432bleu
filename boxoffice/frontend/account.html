@@ -160,7 +160,7 @@
   </div>
 
   <script>
-    let playUrl = 'https://play.432bleu.com';
+    let roomUrl = 'https://play.432bleu.com/~/concert.wam';
 
     async function init() {
       try {
@@ -170,7 +170,7 @@
           return;
         }
         const data = await res.json();
-        playUrl = data.play_url || playUrl;
+        roomUrl = data.room_url || roomUrl;
         document.getElementById('email').textContent = data.email;
         if (data.has_access) {
           document.getElementById('enter-btn').style.display = 'block';
@@ -200,7 +200,7 @@
           : 'Could not open the doors — try again in a minute.');
         return;
       }
-      window.location.href = (await res.json()).play_url || playUrl;
+      window.location.href = (await res.json()).room_url || roomUrl;
     }
 
     async function logout() {
