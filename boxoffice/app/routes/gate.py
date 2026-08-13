@@ -1,6 +1,5 @@
 import os
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -9,15 +8,13 @@ from ..database import get_db
 from ..limiter import limiter
 from ..models import Ticket, Membership
 from ..cookies import COOKIE_NAME, set_pass_cookie
+from ..venue_time import VENUE_TZ  # event dates are naive, in venue-local time
 
 router = APIRouter()
 BOXOFFICE_DOMAIN = os.getenv("BOXOFFICE_DOMAIN", "https://432bleu.com")
 
 TICKET_VALID_HOURS_AFTER_EVENT = 4
 MEMBERSHIP_ACTIVE_STATUSES = {"active", "trialing", "past_due"}
-
-# Event dates are stored as naive datetimes entered in venue-local time
-VENUE_TZ = ZoneInfo(os.getenv("VENUE_TZ", "America/New_York"))
 
 
 def _code_grants_access(db: Session, code: str) -> bool:

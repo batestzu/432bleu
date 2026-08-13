@@ -8,6 +8,9 @@
 const { useState: uS, useEffect: uE } = React;
 
 function addToCalendar(show) {
+  // Depends on dateISO carrying a UTC offset (the API emits venue-local + offset).
+  // With a bare naive string this parsed in the viewer's zone and toISOString()
+  // then re-stamped it, handing a Pacific fan an invite 3 hours off.
   const start = new Date(show.dateISO);
   const end = new Date(start.getTime() + 3 * 60 * 60 * 1000);
   const fmt = (d) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';

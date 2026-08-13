@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Event, TicketTier
+from ..venue_time import venue_iso
 
 router = APIRouter()
 
@@ -13,8 +14,8 @@ def list_events(db: Session = Depends(get_db)):
         {
             "id": e.id,
             "name": e.name,
-            "date": e.date.isoformat(),
-            "doors_time": e.doors_time.isoformat() if e.doors_time else None,
+            "date": venue_iso(e.date),
+            "doors_time": venue_iso(e.doors_time),
             "description": e.description,
         }
         for e in events
@@ -30,8 +31,8 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
     return {
         "id": event.id,
         "name": event.name,
-        "date": event.date.isoformat(),
-        "doors_time": event.doors_time.isoformat() if event.doors_time else None,
+        "date": venue_iso(event.date),
+        "doors_time": venue_iso(event.doors_time),
         "description": event.description,
         "tiers": [
             {

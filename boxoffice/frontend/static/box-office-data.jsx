@@ -21,8 +21,27 @@ const STATUS_META = {
   'sold-out':     { label: 'SOLD OUT',     key: 'mute' },
 };
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+// The API sends offset-carrying ISO ("2026-08-13T19:00:00-04:00"), so `new Date()`
+// resolves the correct instant for every viewer. Billing is deliberately rendered in
+// VENUE time, not the viewer's: a show billed as 7PM ET is 7PM ET for everybody, and
+// the zone suffix on the show time is what tells a remote fan to do the math.
+const VENUE_TZ = 'America/New_York';
+
+function venueDateLabel(d) {
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone: VENUE_TZ, weekday: 'short', day: '2-digit', month: 'short',
+  }).formatToParts(d).reduce((acc, part) => (acc[part.type] = part.value, acc), {});
+  return `${p.weekday} ${p.day} ${p.month}`.toUpperCase();
+}
+
+function venueTimeLabel(d, withZone) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: VENUE_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+    ...(withZone ? { timeZoneName: 'short' } : {}),
+  }).format(d);
+}
 
 // Tier shape: { id, name, label, priceCents, capacity, sold, available, description }
 function mapTier(t) {
@@ -66,9 +85,9 @@ async function fetchShows() {
       tagline: full.description || '',
       dateISO: full.date,
       doorsISO: full.doors_time || null,
-      dateLabel: `${WEEKDAYS[d.getDay()]} ${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]}`,
-      doorsLabel: doors ? doors.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
-      timeLabel: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      dateLabel: venueDateLabel(d),
+      doorsLabel: doors ? venueTimeLabel(doors, false) : null,
+      timeLabel: venueTimeLabel(d, true),
       room: 'MAIN ROOM',
       hz: '432.000',
       status: deriveStatus(tiers),

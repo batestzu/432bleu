@@ -363,13 +363,21 @@
         if (!res.ok) { window.location.href = '/'; return; }
         eventData = await res.json();
 
+        // Rendered in venue time (the API sends an offset), not the viewer's —
+        // a 7PM ET show reads 7PM ET everywhere, with the zone spelled out.
         const d = new Date(eventData.date);
         const dateStr = d.toLocaleDateString('en-US', {
+          timeZone: 'America/New_York',
           weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }).toUpperCase();
+        const timeStr = d.toLocaleTimeString('en-US', {
+          timeZone: 'America/New_York',
+          hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
         }).toUpperCase();
 
         document.getElementById('event-name').textContent = eventData.name;
-        document.getElementById('event-meta').innerHTML = `<span>${dateStr}</span>`;
+        document.getElementById('event-meta').innerHTML =
+          `<span>${dateStr}</span><span>${timeStr}</span>`;
         if (eventData.description) {
           document.getElementById('event-desc').textContent = eventData.description;
         }
