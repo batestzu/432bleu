@@ -153,7 +153,7 @@ function Nav({ accent, mobile }) {
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: mobile ? 10 : 11, letterSpacing: mobile ? '0.16em' : '0.22em',
         color: 'rgba(154,242,232,0.7)' }}>
-        {[['THE ROOM', 'https://play.432bleu.com'], ['MEMBERSHIP', '/membership'], ['ARTISTS', '/artists']].map(([x, href]) =>
+        {[['THE ROOM', 'https://play.432bleu.com/~/concert.wam'], ['MEMBERSHIP', '/membership'], ['ARTISTS', '/artists']].map(([x, href]) =>
         <a key={x} href={href} style={{ color: 'inherit', textDecoration: 'none' }}
         onMouseEnter={(e) => e.currentTarget.style.color = accent}
         onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(154,242,232,0.7)'}>{x}</a>
