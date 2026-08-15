@@ -9,6 +9,7 @@ Usage:
   python manage.py sales <event-id>
   python manage.py deactivate <event-id>
   python manage.py mark-sold-out <event-id>
+  python manage.py set-capacity <event-id> <tier-name> <capacity|none>
   python manage.py list-tickets <email>
   python manage.py resend-ticket <code>
   python manage.py issue-ticket <event-id> <tier-name> <email> "Name"
@@ -163,6 +164,31 @@ def mark_sold_out(event_id):
             tier.capacity = tier.sold
         db.commit()
         print(f"Event #{event_id} ({event.name}) marked sold out — capacity capped at current sold count for all {len(tiers)} tier(s).")
+    finally:
+        db.close()
+
+
+def set_capacity(event_id, tier_name, capacity):
+    """capacity is the TOTAL allotment for the tier, not the remaining count —
+    sold already counts against it, so remaining = capacity - sold. "none" = unlimited."""
+    db = SessionLocal()
+    try:
+        tier = db.query(TicketTier).filter(
+            TicketTier.event_id == event_id,
+            TicketTier.name == tier_name.upper(),
+        ).first()
+        if not tier:
+            print(f"Tier '{tier_name}' not found for event #{event_id}")
+            return
+        cap = None if str(capacity).lower() in ("none", "unlimited", "") else int(capacity)
+        if cap is not None and cap < tier.sold:
+            print(f"Warning: capacity {cap} is below {tier.sold} already sold — tier reads as sold out.")
+        tier.capacity = cap
+        db.commit()
+        shown = "unlimited" if cap is None else cap
+        remaining = "unlimited" if cap is None else max(cap - tier.sold, 0)
+        print(f"Event #{event_id} {tier.label}: capacity set to {shown} "
+              f"({tier.sold} sold, {remaining} remaining)")
     finally:
         db.close()
 
@@ -418,6 +444,11 @@ if __name__ == "__main__":
             print("Usage: python manage.py mark-sold-out <event-id>")
         else:
             mark_sold_out(int(sys.argv[2]))
+    elif cmd == "set-capacity":
+        if len(sys.argv) < 5:
+            print("Usage: python manage.py set-capacity <event-id> <tier-name> <capacity|none>")
+        else:
+            set_capacity(int(sys.argv[2]), sys.argv[3], sys.argv[4])
     elif cmd == "list-tickets":
         if len(sys.argv) < 3:
             print("Usage: python manage.py list-tickets <email>")
