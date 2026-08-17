@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
@@ -30,6 +30,27 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(survey.router, prefix="/api")
 # OIDC provider lives at the app root: /.well-known/* must be at a fixed path.
 app.include_router(oidc.router)
+
+@app.middleware("http")
+async def revalidate_by_default(request: Request, call_next):
+    """Make browsers check with us before reusing anything they've cached.
+
+    There is no build step here: the .jsx and .html files ARE the deploy artifact,
+    served from stable URLs with no content hash, so every deploy reuses the same
+    URLs. Starlette sends etag and last-modified but no Cache-Control, and with no
+    Cache-Control a browser is free to apply *heuristic* freshness — commonly a
+    fraction of the age since last-modified — and serve a stale copy without asking.
+    That is how a fix can be verifiably live to curl and still show the old page in
+    a browser for hours.
+
+    "no-cache" is not "don't cache": it keeps the copy and requires revalidation,
+    which the etag answers with a cheap 304. Anything that wants real caching can
+    still set its own Cache-Control — setdefault leaves it alone.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
 
 app.mount("/static", StaticFiles(directory="/app/frontend/static"), name="static")
 
