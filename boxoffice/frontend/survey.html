@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>432.BLEU — Tell us what you'd pay to be there</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0B0E17;
+    --bg-2: #10141F;
+    --panel: #151A28;
+    --line: #262C3D;
+    --ink: #EDEFF5;
+    --ink-dim: #9AA1B5;
+    --amber: #F2B84B;
+    --violet: #8C6FF7;
+    --ok: #58D6A8;
+    --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(140,111,247,0.16), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:64px 24px 120px;}
+
+  /* Signature: frequency waveform divider — 432 Hz motif */
+  .wave{
+    width:100%;height:28px;margin:28px 0;
+    display:flex;align-items:center;gap:3px;
+  }
+  .wave span{
+    flex:1;background:linear-gradient(180deg, var(--amber), var(--violet));
+    border-radius:2px;opacity:0.55;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce){ .wave span{animation:none;} }
+  @keyframes pulse{
+    0%,100%{transform:scaleY(0.3);}
+    50%{transform:scaleY(1);}
+  }
+
+  header{margin-bottom:8px;}
+  .eyebrow{
+    font-family:'Space Mono',monospace;
+    font-size:12px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 14px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;font-size:clamp(32px,6vw,46px);
+    line-height:1.08;margin:0 0 18px;letter-spacing:-0.01em;
+  }
+  h1 em{font-style:italic;font-weight:300;color:var(--violet);}
+  .lede{color:var(--ink-dim);font-size:16px;max-width:52ch;margin:0 0 4px;}
+
+  form{margin-top:8px;}
+  fieldset{
+    border:none;padding:0;margin:0 0 40px;
+  }
+  .section-head{
+    display:flex;align-items:baseline;gap:12px;
+    margin:56px 0 6px;
+  }
+  .section-num{
+    font-family:'Space Mono',monospace;font-size:13px;color:var(--ink-dim);
+  }
+  .section-title{
+    font-family:'Fraunces',serif;font-size:22px;font-weight:500;
+  }
+  .section-help{color:var(--ink-dim);font-size:14px;margin:6px 0 26px;max-width:56ch;}
+
+  .q{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px 22px 18px;
+    margin-bottom:14px;
+  }
+  .q-title{font-size:15.5px;margin:0 0 16px;font-weight:500;}
+  .q-title .req{color:var(--amber);margin-left:2px;}
+
+  /* Likert row */
+  .likert{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:8px;
+  }
+  .likert label{
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    cursor:pointer;
+    font-size:11px;color:var(--ink-dim);text-align:center;
+  }
+  .likert input{
+    appearance:none;-webkit-appearance:none;
+    width:22px;height:22px;border-radius:50%;
+    border:1.5px solid var(--line);background:var(--bg-2);
+    cursor:pointer;transition:border-color .15s, background .15s;
+  }
+  .likert input:checked{
+    border-color:var(--amber);
+    background:radial-gradient(circle, var(--amber) 40%, transparent 42%);
+  }
+  .likert-endcaps{
+    display:flex;justify-content:space-between;
+    font-size:11px;color:var(--ink-dim);margin-top:10px;
+  }
+
+  /* Radio / choice list */
+  .choices{display:flex;flex-direction:column;gap:9px;}
+  .choice{
+    display:flex;align-items:center;gap:11px;
+    padding:10px 12px;border-radius:var(--radius);
+    border:1px solid var(--line);cursor:pointer;
+    font-size:14.5px;color:var(--ink);
+    transition:border-color .15s, background .15s;
+  }
+  .choice:hover{border-color:#3a4258;}
+  .choice input{accent-color:var(--amber);width:16px;height:16px;flex-shrink:0;}
+  .choice.selected{border-color:var(--amber);background:rgba(242,184,75,0.06);}
+
+  textarea{
+    width:100%;background:var(--bg-2);border:1px solid var(--line);
+    border-radius:var(--radius);color:var(--ink);font-family:inherit;
+    font-size:14.5px;padding:12px;min-height:88px;resize:vertical;
+  }
+  textarea:focus, .choice:focus-within, .likert label:focus-within{
+    outline:2px solid var(--violet);outline-offset:2px;
+  }
+
+  button[type=submit]{
+    font-family:'Space Mono',monospace;
+    background:var(--amber);color:#14110A;border:none;
+    padding:16px 30px;border-radius:var(--radius);
+    font-size:14px;letter-spacing:0.04em;text-transform:uppercase;
+    cursor:pointer;width:100%;margin-top:24px;
+    transition:transform .12s, background .15s;
+  }
+  button[type=submit]:hover{background:#f7c563;}
+  button[type=submit]:active{transform:scale(0.99);}
+  button[type=submit]:disabled{opacity:0.5;cursor:not-allowed;}
+
+  .status{
+    margin-top:16px;font-size:13.5px;color:var(--ink-dim);text-align:center;
+  }
+  .status.ok{color:var(--ok);}
+  .status.err{color:#F26E56;}
+
+  #done{display:none;text-align:center;padding:80px 0;}
+  #done h2{font-family:'Fraunces',serif;font-size:30px;font-weight:600;margin-bottom:12px;}
+  #done p{color:var(--ink-dim);}
+  #done .redirect-note{margin-top:34px;font-family:'Space Mono',monospace;font-size:12.5px;line-height:2;}
+  #done .redirect-note a{color:var(--amber);text-decoration:none;letter-spacing:0.06em;}
+  #done .redirect-note a:hover{text-decoration:underline;}
+
+  footer{margin-top:60px;text-align:center;color:var(--ink-dim);font-size:12px;font-family:'Space Mono',monospace;}
+  footer a{color:var(--ink-dim);letter-spacing:0.08em;text-decoration:none;}
+  footer a:hover{color:var(--amber);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">432.BLEU — BOX OFFICE RESEARCH</p>
+    <h1>Tell us what would get you <em>through the door</em>.</h1>
+    <p class="lede">Five minutes on live music, distance, cost, and what a virtual show would need to be worth your time — and your money.</p>
+  </header>
+
+  <div class="wave" aria-hidden="true">
+    <span style="animation-delay:0s"></span><span style="animation-delay:.1s"></span><span style="animation-delay:.2s"></span>
+    <span style="animation-delay:.3s"></span><span style="animation-delay:.4s"></span><span style="animation-delay:.5s"></span>
+    <span style="animation-delay:.6s"></span><span style="animation-delay:.7s"></span><span style="animation-delay:.8s"></span>
+    <span style="animation-delay:.9s"></span><span style="animation-delay:1s"></span><span style="animation-delay:1.1s"></span>
+  </div>
+
+  <form id="surveyForm">
+
+    <div class="section-head"><span class="section-num">01</span><span class="section-title">About you</span></div>
+
+    <div class="q">
+      <p class="q-title">In the past 12 months, have you attended a live concert or music event in person?<span class="req">*</span></p>
+      <div class="choices" data-name="attended_12mo" data-required="true"></div>
+    </div>
+
+    <div class="q">
+      <p class="q-title">How often do you typically attend in-person concerts?<span class="req">*</span></p>
+      <div class="choices" data-name="attend_frequency" data-required="true"></div>
+    </div>
+
+    <div class="q">
+      <p class="q-title">Age range<span class="req">*</span></p>
+      <div class="choices" data-name="age_range" data-required="true"></div>
+    </div>
+
+    <div class="q">
+      <p class="q-title">How far do you live from the nearest venue that regularly hosts artists you'd want to see?<span class="req">*</span></p>
+      <div class="choices" data-name="distance_to_venue" data-required="true"></div>
+    </div>
+
+    <div class="q">
+      <p class="q-title">Have you ever attended or watched a livestreamed or virtual concert?<span class="req">*</span></p>
+      <div class="choices" data-name="virtual_experience" data-required="true"></div>
+    </div>
+
+    <div class="section-head"><span class="section-num">02</span><span class="section-title">Getting to shows</span></div>
+    <p class="section-help">Distance and cost, as barriers to seeing music in person.</p>
+
+    <div id="section-b"></div>
+
+    <div class="q">
+      <p class="q-title">Estimate your total spend on a typical concert outing (tickets + travel + parking + food/drink):<span class="req">*</span></p>
+      <div class="choices" data-name="typical_spend" data-required="true"></div>
+    </div>
+
+    <div class="section-head"><span class="section-num">03</span><span class="section-title">Experiencing music with others</span></div>
+    <p class="section-help">Picture a virtual concert platform where you can watch a live-streamed performance and interact with other attendees in real time — chat, voice, avatars, shared reactions — as if you were at the show together.</p>
+
+    <div id="section-c"></div>
+
+    <div class="section-head"><span class="section-num">04</span><span class="section-title">What it's worth to you</span></div>
+
+    <div id="section-d"></div>
+
+    <div class="q">
+      <p class="q-title">What would you pay for a single virtual concert ticket with real-time social features?<span class="req">*</span></p>
+      <div class="choices" data-name="wtp_single_ticket" data-required="true"></div>
+    </div>
+
+    <div class="q">
+      <p class="q-title">What would you pay for a monthly subscription with access to multiple virtual concerts?<span class="req">*</span></p>
+      <div class="choices" data-name="wtp_subscription" data-required="true"></div>
+    </div>
+
+    <div class="section-head"><span class="section-num">05</span><span class="section-title">Introducing 432.BLEU</span></div>
+    <p class="section-help">432.BLEU is a virtual concert venue where you watch live performances and interact with other fans in real time, from anywhere.</p>
+
+    <div id="section-e"></div>
+
+    <div class="q">
+      <p class="q-title">How likely are you to try 432.BLEU if it launched in the next 6 months?<span class="req">*</span></p>
+      <div class="likert" data-name="try_likelihood" data-required="true" data-scale="1-5"></div>
+      <div class="likert-endcaps"><span>Very unlikely</span><span>Very likely</span></div>
+    </div>
+
+    <div class="q">
+      <p class="q-title">0–10: how likely are you to recommend 432.BLEU to a friend?<span class="req">*</span></p>
+      <div class="likert" data-name="nps" data-required="true" data-scale="0-10"></div>
+      <div class="likert-endcaps"><span>Not at all likely</span><span>Extremely likely</span></div>
+    </div>
+
+    <div class="section-head"><span class="section-num">06</span><span class="section-title">In your words</span></div>
+    <p class="section-help">Optional — but we read every response.</p>
+
+    <div class="q">
+      <p class="q-title">What would make a virtual concert experience feel worth paying for?</p>
+      <textarea name="open_worth_paying"></textarea>
+    </div>
+    <div class="q">
+      <p class="q-title">What, if anything, would prevent you from attending a virtual concert?</p>
+      <textarea name="open_prevent"></textarea>
+    </div>
+    <div class="q">
+      <p class="q-title">Any other thoughts on 432.BLEU or virtual concerts in general?</p>
+      <textarea name="open_other"></textarea>
+    </div>
+
+    <button type="submit" id="submitBtn">Send it in</button>
+    <p class="status" id="statusMsg" role="status"></p>
+  </form>
+
+  <div id="done">
+    <h2>You're in the mix.</h2>
+    <p>Thanks for the read on this — it goes straight into how we build the room.</p>
+    <p class="redirect-note">Taking you back to the box office in <span id="countdown">5</span>…<br>
+      <a href="https://boxoffice.432bleu.com/" id="redirect-now">Go now &rarr;</a></p>
+  </div>
+
+  <footer>
+    <a href="/">&larr; BACK TO THE BOX OFFICE</a><br><br>
+    432.BLEU &middot; BOX OFFICE RESEARCH &middot; 432bleu.com
+  </footer>
+</div>
+
+<script>
+// Responses go to the box office's own API (app/routes/survey.py) and land in the
+// survey_responses table. Same origin, so no CORS dance and no opaque no-cors POST:
+// a failed submit actually reports as failed instead of silently succeeding.
+const SURVEY_ENDPOINT = "/api/survey";
+
+// Where a finished respondent gets sent, and how long the thanks message holds
+// before they go. The link in #done points at the same place — keep them in sync.
+const RETURN_URL = "https://boxoffice.432bleu.com/";
+const RETURN_DELAY_SECONDS = 5;
+
+// ---- Data ----
+const LIKERT_LABELS = ['Strongly disagree','Disagree','Neutral','Agree','Strongly agree'];
+
+const sectionB = [
+  ['b1','The distance I\u2019d have to travel discourages me from attending concerts I\u2019d otherwise want to see.'],
+  ['b2','Ticket prices are a major factor in whether I decide to attend.'],
+  ['b3','Factoring in travel, parking, and lodging, attending concerts often feels not worth it financially.'],
+  ['b4','Cost and travel distance rarely influence my decision to attend a concert.'],
+  ['b5','I\u2019ve skipped a concert I wanted to attend because of the travel distance.'],
+  ['b6','I\u2019ve skipped a concert I wanted to attend because of the total cost.'],
+  ['b7','If a concert I love were 2+ hours away, I\u2019d be unlikely to attend.'],
+];
+const sectionC = [
+  ['c1','Being able to interact with other attendees would make me more interested in a virtual concert.'],
+  ['c2','I\u2019d enjoy chatting or reacting alongside other fans in real time during a virtual concert.'],
+  ['c3','A virtual concert with no social features would feel less appealing than one with them.'],
+  ['c4','Whether or not I can interact with other people wouldn\u2019t affect my interest in a virtual concert.'],
+  ['c5','Part of the appeal of a live concert is sharing it with people around me.'],
+  ['c6','I\u2019d be more likely to attend a virtual concert with friends, even remotely, than alone.'],
+  ['c7','Social features like chat or virtual "seating" with friends would increase the value of a virtual ticket.'],
+];
+const sectionD = [
+  ['d1','I\u2019d be willing to pay for access to a high-quality virtual concert experience.'],
+  ['d2','A virtual concert ticket is worth paying nearly as much as an in-person ticket, if the quality is there.'],
+  ['d3','I would only attend a virtual concert if it were free.'],
+  ['d4','I\u2019d pay more for a virtual ticket if it included interactive social features.'],
+  ['d5','I\u2019d be more willing to pay for a virtual concert than a recorded stream, because it\u2019s live.'],
+];
+const sectionE = [
+  ['e1','I\u2019d be interested in attending a concert on 432.BLEU.'],
+  ['e2','432.BLEU could be a good alternative for concerts I couldn\u2019t attend in person due to distance.'],
+  ['e3','432.BLEU could be a good alternative for concerts I couldn\u2019t attend in person due to cost.'],
+  ['e4','I\u2019d recommend 432.BLEU to a friend who struggles to attend concerts in person.'],
+];
+
+const CHOICES = {
+  attended_12mo: ['Yes','No'],
+  attend_frequency: ['Never','Once a year or less','2\u20133 times a year','4\u20136 times a year','More than 6 times a year'],
+  age_range: ['Under 18','18\u201324','25\u201334','35\u201344','45\u201354','55\u201364','65+'],
+  distance_to_venue: ['Less than 10 miles','10\u201330 miles','31\u201375 miles','76\u2013150 miles','More than 150 miles'],
+  virtual_experience: ['Yes','No'],
+  typical_spend: ['Under $50','$50\u2013$100','$101\u2013$200','$201\u2013$350','More than $350'],
+  wtp_single_ticket: ['$0 (would only attend free events)','$1\u2013$10','$11\u2013$25','$26\u2013$50','$51\u2013$75','More than $75'],
+  wtp_subscription: ['$0 (not interested)','$1\u2013$10/month','$11\u2013$20/month','$21\u2013$35/month','More than $35/month'],
+};
+
+// ---- Render helpers ----
+function renderChoices(){
+  document.querySelectorAll('.choices[data-name]').forEach(el=>{
+    const name = el.dataset.name;
+    const opts = CHOICES[name] || [];
+    el.innerHTML = opts.map((opt,i)=>`
+      <label class="choice">
+        <input type="radio" name="${name}" value="${opt}" ${el.dataset.required==='true'?'required':''}>
+        <span>${opt}</span>
+      </label>`).join('');
+  });
+  document.querySelectorAll('.choice').forEach(label=>{
+    const input = label.querySelector('input');
+    input.addEventListener('change', ()=>{
+      document.querySelectorAll(`input[name="${input.name}"]`).forEach(i=>{
+        i.closest('.choice').classList.toggle('selected', i.checked);
+      });
+    });
+  });
+}
+
+function likertRow(name){
+  return `<div class="likert" data-name="${name}" data-scale="1-5">` +
+    [1,2,3,4,5].map(v=>`
+      <label>
+        <input type="radio" name="${name}" value="${v}" required>
+        ${LIKERT_LABELS[v-1]}
+      </label>`).join('') + `</div>`;
+}
+
+function renderLikertSection(containerId, items){
+  const el = document.getElementById(containerId);
+  el.innerHTML = items.map(([id,text])=>`
+    <div class="q">
+      <p class="q-title">${text}<span class="req">*</span></p>
+      ${likertRow(id)}
+    </div>`).join('');
+}
+
+function renderStandaloneLikert(scaleType){
+  document.querySelectorAll(`.likert[data-scale="${scaleType}"][data-name]`).forEach(el=>{
+    if(el.children.length) return; // already rendered as row above
+    const name = el.dataset.name;
+    const [lo,hi] = scaleType.split('-').map(Number);
+    let html = '';
+    for(let v=lo; v<=hi; v++){
+      html += `<label><input type="radio" name="${name}" value="${v}" required>${v}</label>`;
+    }
+    el.innerHTML = html;
+  });
+}
+
+renderChoices();
+renderLikertSection('section-b', sectionB);
+renderLikertSection('section-c', sectionC);
+renderLikertSection('section-d', sectionD);
+renderLikertSection('section-e', sectionE);
+renderStandaloneLikert('1-5');
+renderStandaloneLikert('0-10');
+
+// ---- Return to the box office ----
+// The visible countdown is the point: a page that navigates on its own with no
+// warning reads as a glitch. The "Go now" link is the real exit — the timer just
+// saves a click, and anyone still reading the thanks message can ignore it.
+function startReturnCountdown(){
+  const el = document.getElementById('countdown');
+  const btn = document.getElementById('redirect-now');
+  btn.href = RETURN_URL;
+  let left = RETURN_DELAY_SECONDS;
+  el.textContent = left;
+  const tick = setInterval(()=>{
+    left -= 1;
+    el.textContent = Math.max(left, 0);
+    if(left <= 0){
+      clearInterval(tick);
+      window.location.href = RETURN_URL;
+    }
+  }, 1000);
+}
+
+// ---- Submit ----
+const form = document.getElementById('surveyForm');
+const statusMsg = document.getElementById('statusMsg');
+const submitBtn = document.getElementById('submitBtn');
+
+form.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+
+  if(!form.checkValidity()){
+    form.reportValidity();
+    return;
+  }
+
+  const data = {};
+  new FormData(form).forEach((val,key)=>{ data[key] = val; });
+
+  submitBtn.disabled = true;
+  statusMsg.textContent = 'Sending...';
+  statusMsg.className = 'status';
+
+  // Only the send lives in the try. If the thank-you/redirect code below ever threw,
+  // a catch wrapped around it would tell someone their answers failed — and re-enable
+  // the button — on a submission the server already stored.
+  try{
+    const res = await fetch(SURVEY_ENDPOINT, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({answers: data})
+    });
+    if(res.status === 429){
+      statusMsg.textContent = 'Too many submissions from this connection — give it a minute and try again.';
+      statusMsg.className = 'status err';
+      submitBtn.disabled = false;
+      return;
+    }
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+  }catch(err){
+    statusMsg.textContent = 'Something went wrong sending your response — please try again.';
+    statusMsg.className = 'status err';
+    submitBtn.disabled = false;
+    return;
+  }
+
+  form.style.display = 'none';
+  document.getElementById('done').style.display = 'block';
+  window.scrollTo({top:0, behavior:'smooth'});
+  startReturnCountdown();
+});
+</script>
+</body>
+</html>

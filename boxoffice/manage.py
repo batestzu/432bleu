@@ -10,6 +10,7 @@ Usage:
   python manage.py deactivate <event-id>
   python manage.py mark-sold-out <event-id>
   python manage.py set-capacity <event-id> <tier-name> <capacity|none>
+  python manage.py export-survey [out.csv]
   python manage.py list-tickets <email>
   python manage.py resend-ticket <code>
   python manage.py issue-ticket <event-id> <tier-name> <email> "Name"
@@ -28,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 os.environ.setdefault("DATABASE_URL", "postgresql://boxoffice:boxoffice@localhost:5433/boxoffice")
 
 from app.database import engine, SessionLocal, Base
-from app.models import Event, TicketTier, Ticket, MembershipTier, Membership
+from app.models import Event, TicketTier, Ticket, MembershipTier, Membership, SurveyResponse
 from app.code_gen import generate_code
 from app.email_client import send_ticket_email, send_membership_email
 from sqlalchemy import func
@@ -189,6 +190,38 @@ def set_capacity(event_id, tier_name, capacity):
         remaining = "unlimited" if cap is None else max(cap - tier.sold, 0)
         print(f"Event #{event_id} {tier.label}: capacity set to {shown} "
               f"({tier.sold} sold, {remaining} remaining)")
+    finally:
+        db.close()
+
+
+def export_survey(path=None):
+    """Flatten the JSON answer blobs into a CSV. Columns are the union of every key
+    seen, in first-seen order, so a questionnaire that gained or lost a question
+    between rounds still exports as one table."""
+    import csv
+    db = SessionLocal()
+    try:
+        rows = db.query(SurveyResponse).order_by(SurveyResponse.created_at).all()
+        if not rows:
+            print("No survey responses.")
+            return
+        keys = []
+        for r in rows:
+            for k in r.answers or {}:
+                if k not in keys:
+                    keys.append(k)
+        out = open(path, "w", newline="") if path else sys.stdout
+        try:
+            writer = csv.writer(out)
+            writer.writerow(["id", "created_at"] + keys)
+            for r in rows:
+                answers = r.answers or {}
+                writer.writerow([r.id, r.created_at.isoformat()] + [answers.get(k, "") for k in keys])
+        finally:
+            if path:
+                out.close()
+        if path:
+            print(f"Wrote {len(rows)} response(s) to {path}")
     finally:
         db.close()
 
@@ -449,6 +482,8 @@ if __name__ == "__main__":
             print("Usage: python manage.py set-capacity <event-id> <tier-name> <capacity|none>")
         else:
             set_capacity(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "export-survey":
+        export_survey(sys.argv[2] if len(sys.argv) > 2 else None)
     elif cmd == "list-tickets":
         if len(sys.argv) < 3:
             print("Usage: python manage.py list-tickets <email>")

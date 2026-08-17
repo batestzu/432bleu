@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from .database import Base
@@ -98,6 +98,18 @@ class LoginToken(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
+
+
+class SurveyResponse(Base):
+    """Box-office research survey (frontend/survey.html). Answers are one JSON blob
+    rather than a column per question: the questionnaire is expected to change between
+    rounds, and a migration per edited question isn't worth it — `manage.py
+    export-survey` flattens the blobs back into a CSV. Deliberately anonymous: no
+    email, no IP, nothing joinable back to a ticket buyer."""
+    __tablename__ = "survey_responses"
+    id = Column(Integer, primary_key=True)
+    answers = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AuthCode(Base):
