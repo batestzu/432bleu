@@ -96,6 +96,15 @@ async function fetchShows() {
   }));
 }
 
+// PWYC carries price_cents = 0 because the buyer names the amount, but checkout
+// rejects anything under $2 (routes/tickets.py, routes/crypto.py). So the cheapest
+// way through the door on a PWYC tier is $2, not free — which is what "FROM" means.
+const PWYC_MIN_CENTS = 200;
+
+function entryPriceCents(tier) {
+  return tier.name === 'PWYC' ? Math.max(tier.priceCents, PWYC_MIN_CENTS) : tier.priceCents;
+}
+
 function formatPrice(tier) {
   if (tier.priceCents === 0) {
     return tier.name === 'PWYC' ? 'PAY WHAT YOU CAN' : 'FREE';
@@ -106,8 +115,8 @@ function formatPrice(tier) {
 function priceFrom(show) {
   const available = show.tiers.filter(t => t.available);
   if (available.length === 0) return 'SOLD OUT';
-  if (available.some(t => t.priceCents === 0)) return 'FREE';
-  return '$' + (Math.min(...available.map(t => t.priceCents)) / 100);
+  const cheapest = Math.min(...available.map(entryPriceCents));
+  return cheapest === 0 ? 'FREE' : '$' + (cheapest / 100);
 }
 
-Object.assign(window, { BLEU, STATUS_META, fetchShows, formatPrice, priceFrom });
+Object.assign(window, { BLEU, STATUS_META, PWYC_MIN_CENTS, fetchShows, formatPrice, priceFrom });

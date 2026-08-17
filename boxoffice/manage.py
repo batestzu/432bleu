@@ -5,11 +5,13 @@ Usage:
   python manage.py create-event "Show Name" 2026-07-04 "Optional description" ["2026-07-04 20:00"]
   python manage.py set-date <event-id> "2026-07-04"
   python manage.py set-doors-time <event-id> "2026-07-04 20:00"
+  python manage.py set-times <event-id> <show HH:MM> [doors HH:MM]
   python manage.py list-events
   python manage.py sales <event-id>
   python manage.py deactivate <event-id>
   python manage.py mark-sold-out <event-id>
   python manage.py set-capacity <event-id> <tier-name> <capacity|none>
+  python manage.py remove-tier <event-id> <tier-name>
   python manage.py export-survey [out.csv]
   python manage.py list-tickets <email>
   python manage.py resend-ticket <code>
@@ -136,6 +138,33 @@ def set_doors_time(event_id, doors_str):
         db.close()
 
 
+def set_times(event_id, show_time, doors_time=None):
+    """Set the clock time of a show without touching its date — `set-times 7 21:00
+    20:30` means doors 8:30PM, show 9PM, on whatever Tuesday that event already sits
+    on. Times are venue-local (see app/venue_time.py); doors default to 30 minutes
+    before the show."""
+    db = SessionLocal()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            print("Event not found.")
+            return
+        day = event.date.date()
+        show = datetime.combine(day, datetime.strptime(show_time, "%H:%M").time())
+        doors = (datetime.combine(day, datetime.strptime(doors_time, "%H:%M").time())
+                 if doors_time else show - timedelta(minutes=30))
+        if doors > show:
+            print(f"Refusing: doors {doors:%H:%M} are after the {show:%H:%M} show time.")
+            return
+        event.date = show
+        event.doors_time = doors
+        db.commit()
+        print(f"Event #{event_id} ({event.name}) on {day}: "
+              f"doors {doors:%-I:%M %p}, show {show:%-I:%M %p} venue time")
+    finally:
+        db.close()
+
+
 def deactivate(event_id):
     db = SessionLocal()
     try:
@@ -190,6 +219,36 @@ def set_capacity(event_id, tier_name, capacity):
         remaining = "unlimited" if cap is None else max(cap - tier.sold, 0)
         print(f"Event #{event_id} {tier.label}: capacity set to {shown} "
               f"({tier.sold} sold, {remaining} remaining)")
+    finally:
+        db.close()
+
+
+def remove_tier(event_id, tier_name):
+    """Drop a ticket tier from an event entirely, so it stops appearing on the event
+    page at all. Refuses once anything has been sold against it — tickets FK the tier
+    row, and a show's sales history is not ours to delete. To close a tier that has
+    already sold, use `set-capacity <event-id> <tier> <sold-count>` instead, which
+    leaves it visible but marked SOLD OUT."""
+    db = SessionLocal()
+    try:
+        tier = db.query(TicketTier).filter(
+            TicketTier.event_id == event_id,
+            TicketTier.name == tier_name.upper(),
+        ).first()
+        if not tier:
+            print(f"Tier '{tier_name}' not found for event #{event_id}")
+            return
+        issued = db.query(Ticket).filter(Ticket.tier_id == tier.id).count()
+        if issued or tier.sold:
+            print(f"Refusing to remove {tier.label} from event #{event_id}: "
+                  f"{issued} ticket(s) issued, sold={tier.sold}.")
+            print(f"  To close it without losing history: "
+                  f"python manage.py set-capacity {event_id} {tier.name} {tier.sold}")
+            return
+        label = tier.label
+        db.delete(tier)
+        db.commit()
+        print(f"Removed {label} from event #{event_id}")
     finally:
         db.close()
 
@@ -460,6 +519,12 @@ if __name__ == "__main__":
             print('Usage: python manage.py set-doors-time <event-id> "YYYY-MM-DD HH:MM"')
         else:
             set_doors_time(int(sys.argv[2]), sys.argv[3])
+    elif cmd == "set-times":
+        if len(sys.argv) < 4:
+            print("Usage: python manage.py set-times <event-id> <show HH:MM> [doors HH:MM]")
+        else:
+            set_times(int(sys.argv[2]), sys.argv[3],
+                      sys.argv[4] if len(sys.argv) > 4 else None)
     elif cmd == "list-events":
         list_events()
     elif cmd == "sales":
@@ -482,6 +547,11 @@ if __name__ == "__main__":
             print("Usage: python manage.py set-capacity <event-id> <tier-name> <capacity|none>")
         else:
             set_capacity(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "remove-tier":
+        if len(sys.argv) < 4:
+            print("Usage: python manage.py remove-tier <event-id> <tier-name>")
+        else:
+            remove_tier(int(sys.argv[2]), sys.argv[3])
     elif cmd == "export-survey":
         export_survey(sys.argv[2] if len(sys.argv) > 2 else None)
     elif cmd == "list-tickets":
