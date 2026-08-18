@@ -10,7 +10,7 @@
  * which is what keeps the claim on /privacy true.
  */
 (function () {
-  var WEBSITE_ID = "REPLACE_WITH_WEBSITE_ID";
+  var WEBSITE_ID = "596babe1-51b9-4fff-a526-0aa76ba9a9ab";
 
   // Until the id is filled in this file is inert, so it is safe to deploy the
   // markup before the dashboard exists -- no console errors, no failed requests.
