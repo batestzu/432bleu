@@ -607,6 +607,50 @@ services:
       postgres:
         condition: service_started
 
+  # Self-hosted, cookieless analytics for the box office. Nothing is sent to a
+  # third party: this container and its data live on our own box.
+  #
+  # Pinned to an explicit version on purpose. Umami's releases run ahead of its
+  # published images -- GHCR carries versioned tags only through v2.20.2, and the
+  # v3 line exists solely as the moving `postgresql-latest` tag. A moving tag here
+  # would let a major upgrade land by itself during show week.
+  umami:
+    restart: unless-stopped
+    image: ghcr.io/umami-software/umami:postgresql-v2.20.2
+    environment:
+      # Its own database inside the Postgres we already run. Create it once with:
+      #   docker compose exec -T postgres createdb -U boxoffice -O boxoffice umami
+      DATABASE_URL: postgresql://boxoffice:boxoffice@postgres:5432/umami
+      APP_SECRET: "$UMAMI_APP_SECRET"
+      DISABLE_TELEMETRY: "1"
+      # Caddy -> Traefik both forward this, so visitor counts reflect real clients
+      # instead of resolving to the proxy's own address.
+      CLIENT_IP_HEADER: X-Forwarded-For
+    ports:
+      # Dashboard is deliberately NOT routed through Traefik: the prebuilt image
+      # has no BASE_PATH baked in (it is a build-time variable), so its Next.js
+      # assets only resolve at a domain root. Binding to loopback means the admin
+      # login is never exposed to the internet at all. Reach it with:
+      #   ssh -L 3001:127.0.0.1:3001 vspot@<vps>   then open http://localhost:3001
+      - "127.0.0.1:3001:3000"
+    labels:
+      # Public surface is exactly two routes -- the tracker script and the
+      # collection endpoint. Path() is exact on purpose: a PathPrefix(`/_a`) would
+      # also expose /_a/api/auth/login and hand the internet a login form to
+      # brute-force through a path that looks like analytics.
+      - "traefik.enable=true"
+      - "traefik.http.routers.umami-tracker.rule=Host(`boxoffice.432bleu.com`) && (Path(`/_a/script.js`) || Path(`/_a/api/send`))"
+      - "traefik.http.routers.umami-tracker.entryPoints=web"
+      # Above boxoffice's 100 so these two paths win over its catch-all Host rule.
+      - "traefik.http.routers.umami-tracker.priority=200"
+      - "traefik.http.routers.umami-tracker.middlewares=umami-strip"
+      - "traefik.http.routers.umami-tracker.service=umami"
+      - "traefik.http.middlewares.umami-strip.stripprefix.prefixes=/_a"
+      - "traefik.http.services.umami.loadbalancer.server.port=3000"
+    depends_on:
+      postgres:
+        condition: service_started
+
 volumes:
   postgres-data:
     external: true

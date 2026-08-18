@@ -63,6 +63,11 @@ echo "-- oidc provider (boxoffice)"
 set_var OIDC_CLIENT_SECRET    "$(openssl rand -hex 32)"
 set_var OIDC_PRIVATE_KEY_B64  "$(openssl genrsa 2048 2>/dev/null | base64 -w0)"
 
+echo "-- umami (analytics)"
+# Signs Umami's own session tokens. Rotating it logs you out of the dashboard;
+# it has no bearing on ticket or venue access.
+set_var UMAMI_APP_SECRET "$(openssl rand -hex 32)"
+
 # Fail loudly rather than letting synapse die on its next start.
 missing=""
 for key in MATRIX_REGISTRATION_SHARED_SECRET MATRIX_MACAROON_SECRET_KEY MATRIX_FORM_SECRET OIDC_CLIENT_SECRET OIDC_PRIVATE_KEY_B64; do
