@@ -48,6 +48,7 @@ const requestedStatus = "RequestedStatus";
 const matrixGuest = "matrixGuest";
 const pwaInstallPromptShownKey = "workadventure_pwa_install_prompt_shown";
 const volumeProximityDiscussion = "volumeProximityDiscussion";
+const volumeMegaphone = "volumeMegaphone";
 const foldersOpened = "foldersOpened";
 const ignoredSuggestedRoomIdsKey = "ignoredSuggestedRoomIds";
 const cameraContainerHeightKey = "cameraContainerHeight";
@@ -861,11 +862,25 @@ class LocalUserStore {
     }
 
     getVolumeProximityDiscussion(): number {
-        return parseFloat(localStorage.getItem(volumeProximityDiscussion) || "1");
+        return parseFloat(localStorage.getItem(volumeProximityDiscussion) || "0.8");
     }
 
     setVolumeProximityDiscussion(value: number): void {
         localStorage.setItem(volumeProximityDiscussion, `${value}`);
+    }
+
+    /**
+     * Broadcast/megaphone volume, kept separate from proximity chat. A megaphone
+     * carries a mixed stage feed rather than one person talking nearby, so it wants
+     * its own default and its own slider -- turning the stage down should not also
+     * turn down the people standing next to you.
+     */
+    getVolumeMegaphone(): number {
+        return parseFloat(localStorage.getItem(volumeMegaphone) || "0.75");
+    }
+
+    setVolumeMegaphone(value: number): void {
+        localStorage.setItem(volumeMegaphone, `${value}`);
     }
 
     setCameraContainerHeight(ratio: number): void {

@@ -15,7 +15,7 @@
     import { localUserStore } from "../../Connection/LocalUserStore";
     import { videoQualityStore } from "../../Stores/MediaStore";
     import { screenShareQualityStore } from "../../Stores/ScreenSharingStore";
-    import { volumeProximityDiscussionStore } from "../../Stores/PeerStore";
+    import { volumeMegaphoneStore, volumeProximityDiscussionStore } from "../../Stores/PeerStore";
     import { bandwidthConstrainedPreferenceStore } from "../../Stores/BandwidthConstrainedPreferenceStore";
     import InputSwitch from "../Input/InputSwitch.svelte";
     import RangeSlider from "../Input/RangeSlider.svelte";
@@ -52,6 +52,7 @@
     let bandwidthConstrainedPreference = localUserStore.getBandwidthConstrainedScreenSharePreference();
 
     let volumeProximityDiscussion = localUserStore.getVolumeProximityDiscussion();
+    let volumeMegaphone = localUserStore.getVolumeMegaphone();
 
     let previewCameraPrivacySettings = valueCameraPrivacySettings;
     let previewMicrophonePrivacySettings = valueMicrophonePrivacySettings;
@@ -207,6 +208,12 @@
         analyticsClient.settingAudioVolume();
         localUserStore.setVolumeProximityDiscussion(volumeProximityDiscussion);
         volumeProximityDiscussionStore.set(volumeProximityDiscussion);
+    }
+
+    function updateVolumeMegaphone() {
+        analyticsClient.settingAudioVolume();
+        localUserStore.setVolumeMegaphone(volumeMegaphone);
+        volumeMegaphoneStore.set(volumeMegaphone);
     }
 
     function changeBubbleSound() {
@@ -433,6 +440,59 @@
                     step={0.1}
                     bind:value={volumeProximityDiscussion}
                     onChange={updateVolumeProximityDiscussion}
+                />
+            </div>
+        </div>
+
+        <div class="bg-contrast font-bold text-lg p-4 flex items-center">
+            <div class="me-4 opacity-50"><IconAdjustements /></div>
+
+            {$LL.menu.settings.megaphoneVolume()}
+        </div>
+
+        <div class="flex w-full justify-center">
+            <div class="flex flex-col w-10/12 lg:w-6/12">
+                <ul class="flex justify-between w-full px-[10px] mb-5">
+                    <li class="flex justify-center relative">
+                        <span class="absolute">0</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">1</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">2</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">3</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">4</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">5</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">6</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">7</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">8</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">9</span>
+                    </li>
+                    <li class="flex justify-center relative">
+                        <span class="absolute">10</span>
+                    </li>
+                </ul>
+                <RangeSlider
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    bind:value={volumeMegaphone}
+                    onChange={updateVolumeMegaphone}
                 />
             </div>
         </div>

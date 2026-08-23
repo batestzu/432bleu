@@ -68,6 +68,7 @@ const menu: BaseTranslation = {
         cowebsiteTrigger: "Always ask before opening websites and Jitsi Meet rooms",
         ignoreFollowRequest: "Ignore requests to follow other users",
         proximityDiscussionVolume: "Proximity discussion volume",
+        megaphoneVolume: "Megaphone / stage volume",
         blockAudio: "Block ambient sounds and music",
         disableAnimations: "Disable map animations",
         bubbleSound: "Bubble sound",

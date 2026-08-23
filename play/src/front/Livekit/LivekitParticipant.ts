@@ -12,7 +12,7 @@ import { derived, get, writable } from "svelte/store";
 import type { SpaceUserExtended } from "../Space/SpaceInterface";
 import type { StreamableSubjects } from "../Space/SpacePeerManager/SpacePeerManager";
 import { decrementLivekitConnectionsCount, incrementLivekitConnectionsCount } from "../Utils/E2EHooks";
-import { volumeProximityDiscussionStore } from "../Stores/PeerStore";
+import { volumeMegaphoneStore } from "../Stores/PeerStore";
 import type { WebRtcStats } from "../Components/Video/WebRtcStats";
 import { videoQualityStore } from "../Stores/MediaStore";
 import { screenShareQualityStore } from "../Stores/ScreenSharingStore";
@@ -70,7 +70,7 @@ export class LiveKitParticipant {
         private _streamableSubjects: StreamableSubjects,
         private _blockedUsersStore: Readable<Set<string>>,
         private abortSignal: AbortSignal,
-        private defaultVolume: number = get(volumeProximityDiscussionStore)
+        private defaultVolume: number = get(volumeMegaphoneStore)
     ) {
         incrementLivekitConnectionsCount();
 
