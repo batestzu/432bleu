@@ -563,6 +563,30 @@ services:
 #volumes:
 #  synapsedata:
 
+  # TURN relay for the proximity WebRTC mesh. Without it, phones on carrier-grade NAT
+  # never establish a peer connection: every relay candidate fails, RemotePeer's 5s
+  # CONNECTION_TIMEOUT fires and the tile shows "Reconnecting... Unstable connection...".
+  #
+  # network_mode: host is required, not a shortcut -- TURN hands out the relay ports in
+  # its candidates, so they must be the host's real ports, and publishing the whole
+  # min-port..max-port range through the bridge would be both slow and pointless.
+  #
+  # Runs as root to read Caddy's certificate directory, which is mode 0700 caddy:caddy.
+  # The livekit service reads the same directory the same way.
+  coturn:
+    restart: unless-stopped
+    image: coturn/coturn:4.6.2
+    network_mode: host
+    user: "0:0"
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - /var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.432bleu.com:/etc/caddy-certs:ro
+    command:
+      - turnserver
+      - -c=/etc/coturn/turnserver.conf
+      # Kept out of the tracked config file; must match what play uses to mint credentials.
+      - --static-auth-secret=${TURN_STATIC_AUTH_SECRET}
+
   postgres:
     restart: unless-stopped
     image: postgres:16-alpine
