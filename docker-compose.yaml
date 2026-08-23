@@ -535,6 +535,13 @@ services:
       MATRIX_ADMIN_USER: admin
       MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
       JWT_SECRET: "$SECRET_KEY"
+      # Required by synapse/homeserver.template.yaml. start.sh checks every ${VAR} in
+      # that template against printenv and exits 1 on the first one missing, so omitting
+      # these here crash-loops the container even though they ARE set in .env (.env only
+      # feeds compose variable substitution; it does not put values inside the container).
+      MATRIX_REGISTRATION_SHARED_SECRET: "${MATRIX_REGISTRATION_SHARED_SECRET}"
+      MATRIX_MACAROON_SECRET_KEY: "${MATRIX_MACAROON_SECRET_KEY}"
+      MATRIX_FORM_SECRET: "${MATRIX_FORM_SECRET}"
 
 #  coturn:
 #    image: coturn/coturn:4.5.2
