@@ -49,6 +49,14 @@ export class LiveKitParticipant {
     private _isActiveSpeaker = writable<boolean>(false);
     private _muteAudioStore: Writable<boolean> = writable<boolean>(false);
 
+    // Per-listener volume for this participant, held on the instance rather than built
+    // inside getVideoStream()/getScreenShareStream(). Those rebuild their Streamable on
+    // every track change -- mic mute, camera toggle, (un)subscribe -- so a store created
+    // in there is discarded moments later and the listener's choice silently snaps back
+    // to defaultVolume. RemotePeer keeps volume per-peer for exactly this reason.
+    private _videoVolumeStore: Writable<number>;
+    private _screenShareVolumeStore: Writable<number>;
+
     private boundHandleTrackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
     private boundHandleTrackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
     private boundHandleTrackMuted: (publication: TrackPublication) => void;
@@ -65,6 +73,13 @@ export class LiveKitParticipant {
         private defaultVolume: number = get(volumeProximityDiscussionStore)
     ) {
         incrementLivekitConnectionsCount();
+
+        // Must exist before updateLivekitVideoStreamStore() below builds the first Streamable.
+        // Reads the parameter, not this.defaultVolume, so it does not depend on where TypeScript
+        // orders parameter-property assignment against field initialisers.
+        this._videoVolumeStore = writable(defaultVolume);
+        this._screenShareVolumeStore = writable(defaultVolume);
+
         this.boundHandleTrackSubscribed = this.handleTrackSubscribed.bind(this);
         this.boundHandleTrackUnsubscribed = this.handleTrackUnsubscribed.bind(this);
         this.boundHandleTrackMuted = this.handleTrackMuted.bind(this);
@@ -238,7 +253,7 @@ export class LiveKitParticipant {
                 ),
             } as LivekitStreamable,
             volumeStore: writable(undefined),
-            volume: writable(this.defaultVolume),
+            volume: this._videoVolumeStore,
             closeStreamable: () => {},
             canCloseStreamable: () => false,
             videoType: "video",
@@ -279,7 +294,7 @@ export class LiveKitParticipant {
                 ),
             } as LivekitStreamable,
             volumeStore: writable(undefined),
-            volume: writable(this.defaultVolume),
+            volume: this._screenShareVolumeStore,
             closeStreamable: () => {},
             canCloseStreamable: () => false,
             videoType: "screenSharing",
