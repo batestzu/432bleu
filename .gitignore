@@ -29,6 +29,17 @@ synapse/homeserver.db-*
 synapse/homeserver.yaml
 synapse/media_store/*
 
+# The upstream rule above only names the localhost template's key, so a deployment
+# under a real domain (matrix.432bleu.com.signing.key) was never ignored and sat one
+# `git add -A` away from being committed. Match the key by shape instead of by name.
+synapse/*.signing.key
+
+# Timestamped copies taken before an edit. `*.bak` near the top does not match these:
+# the suffix continues past .bak (docker-compose.yaml.bak-prefix-20260819-040245), and
+# `homeserver.db-*` misses `homeserver.db.stale-...` because the separator is a dot.
+*.bak-*
+synapse/homeserver.db.*
+
 .vscode/settings.json
 play/src/i18n/ko-KR/*.backup
 owncast-data
