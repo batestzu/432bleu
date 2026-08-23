@@ -105,6 +105,15 @@ def survey_page():
     return FileResponse("/app/frontend/survey.html")
 
 
+@app.get("/survey/short")
+def survey_short_page():
+    """Same file, cold-traffic cut. survey.html reads the path and drops section B,
+    most of the social battery, NPS and two open questions -- one stylesheet and one
+    submit path instead of a fork that drifts. Recruitment links carry ?src= too:
+    /survey/short?src=prolific."""
+    return FileResponse("/app/frontend/survey.html")
+
+
 @app.get("/privacy")
 def privacy_page():
     return FileResponse("/app/frontend/privacy.html")

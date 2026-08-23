@@ -212,12 +212,12 @@
       <div class="choices" data-name="virtual_experience" data-required="true"></div>
     </div>
 
-    <div class="section-head"><span class="section-num">02</span><span class="section-title">Getting to shows</span></div>
-    <p class="section-help">Distance and cost, as barriers to seeing music in person.</p>
+    <div class="section-head" data-omit="short"><span class="section-num">02</span><span class="section-title">Getting to shows</span></div>
+    <p class="section-help" data-omit="short">Distance and cost, as barriers to seeing music in person.</p>
 
-    <div id="section-b"></div>
+    <div id="section-b" data-omit="short"></div>
 
-    <div class="q">
+    <div class="q" data-omit="short">
       <p class="q-title">Estimate your total spend on a typical concert outing (tickets + travel + parking + food/drink):<span class="req">*</span></p>
       <div class="choices" data-name="typical_spend" data-required="true"></div>
     </div>
@@ -252,7 +252,7 @@
       <div class="likert-endcaps"><span>Very unlikely</span><span>Very likely</span></div>
     </div>
 
-    <div class="q">
+    <div class="q" data-omit="short">
       <p class="q-title">0–10: how likely are you to recommend 432.BLEU to a friend?<span class="req">*</span></p>
       <div class="likert" data-name="nps" data-required="true" data-scale="0-10"></div>
       <div class="likert-endcaps"><span>Not at all likely</span><span>Extremely likely</span></div>
@@ -265,11 +265,11 @@
       <p class="q-title">What would make a virtual concert experience feel worth paying for?</p>
       <textarea name="open_worth_paying"></textarea>
     </div>
-    <div class="q">
+    <div class="q" data-omit="short">
       <p class="q-title">What, if anything, would prevent you from attending a virtual concert?</p>
       <textarea name="open_prevent"></textarea>
     </div>
-    <div class="q">
+    <div class="q" data-omit="short">
       <p class="q-title">Any other thoughts on 432.BLEU or virtual concerts in general?</p>
       <textarea name="open_other"></textarea>
     </div>
@@ -304,6 +304,25 @@ const RETURN_DELAY_SECONDS = 5;
 
 // ---- Data ----
 const LIKERT_LABELS = ['Strongly disagree','Disagree','Neutral','Agree','Strongly agree'];
+
+// ---- Form variant ----
+// One file serves both questionnaires. /survey is the full instrument; /survey/short
+// (and ?form=short) is the cold-traffic cut: cost/distance (section B) and most of the
+// social battery come out, along with NPS and two of the three open questions. The
+// full version stays for people who already know us and will sit through 36 items.
+//
+// Kept deliberately: everything that prices the product (section D + both WTP questions),
+// everything that measures intent (section E + try_likelihood), the demographics needed
+// to segment, and two social items — c1 and c7 — so the differentiator still gets read.
+// NPS is dropped because it needs ~475 responses to stabilise; at any sample we'll
+// realistically buy it is noise, and section E measures the same intent far more cheaply.
+const IS_SHORT = /\/short\/?$/.test(location.pathname) ||
+                 new URLSearchParams(location.search).get('form') === 'short';
+const SHORT_C = ['c1','c7'];
+const SHORT_COPY = {
+  lede: 'Three minutes on what a virtual concert would need to be worth your time — and your money.',
+  help_c: 'Picture a virtual concert platform where you watch a live performance and interact with other attendees in real time — chat, voice, avatars, shared reactions.'
+};
 
 const sectionB = [
   ['b1','The distance I\u2019d have to travel discourages me from attending concerts I\u2019d otherwise want to see.'],
@@ -380,6 +399,7 @@ function likertRow(name){
 
 function renderLikertSection(containerId, items){
   const el = document.getElementById(containerId);
+  if(!el) return;  // short form removes whole sections from the DOM
   el.innerHTML = items.map(([id,text])=>`
     <div class="q">
       <p class="q-title">${text}<span class="req">*</span></p>
@@ -400,9 +420,29 @@ function renderStandaloneLikert(scaleType){
   });
 }
 
+// Cut the DOM down to the variant first. These nodes are REMOVED, not hidden: a
+// hidden input still carries `required`, so checkValidity() would fail on a question
+// nobody can see and reportValidity() would have nothing to focus — a dead submit
+// button with no visible reason. Removing first also means the render passes below
+// never reach the dropped questions, so they are never marked required at all.
+function applyVariant(){
+  if(!IS_SHORT) return;
+  document.querySelectorAll('[data-omit="short"]').forEach(el=>el.remove());
+  document.querySelector('.lede').textContent = SHORT_COPY.lede;
+  const helpC = document.querySelector('#section-c')
+    ?.previousElementSibling;
+  if(helpC && helpC.classList.contains('section-help')) helpC.textContent = SHORT_COPY.help_c;
+  // Section numbers are written into the markup, so dropping section 02 would leave
+  // a form that counts 01, 03, 04. Renumber whatever survived.
+  document.querySelectorAll('.section-num').forEach((el,i)=>{
+    el.textContent = String(i+1).padStart(2,'0');
+  });
+}
+
+applyVariant();
 renderChoices();
 renderLikertSection('section-b', sectionB);
-renderLikertSection('section-c', sectionC);
+renderLikertSection('section-c', IS_SHORT ? sectionC.filter(([id])=>SHORT_C.includes(id)) : sectionC);
 renderLikertSection('section-d', sectionD);
 renderLikertSection('section-e', sectionE);
 renderStandaloneLikert('1-5');
@@ -443,6 +483,21 @@ form.addEventListener('submit', async (e)=>{
 
   const data = {};
   new FormData(form).forEach((val,key)=>{ data[key] = val; });
+
+  // Which channel this respondent came through, from ?src= on the survey URL. The
+  // API takes an open key/value bag, so this needs no model change and export-survey
+  // picks the column up on its own. Squashed to [a-z0-9_-] and capped so a mangled
+  // or hostile link can't fragment the CSV into one-off categories; anything that
+  // survives to empty (or no param at all) is recorded as 'direct' rather than
+  // dropped, so every response carries a source.
+  const rawSrc = new URLSearchParams(location.search).get('src') || '';
+  data.src = rawSrc.toLowerCase().replace(/[^a-z0-9_-]/g,'').slice(0,40) || 'direct';
+
+  // Which questionnaire produced this row. Without it the CSV is a trap: a short-form
+  // response has empty b1..b7 for the same reason a full-form skip would, and "never
+  // asked" averaged together with "declined to answer" is a silently wrong number.
+  // Filter on form=='full' before touching any section B or NPS figure.
+  data.form = IS_SHORT ? 'short' : 'full';
 
   submitBtn.disabled = true;
   statusMsg.textContent = 'Sending...';
