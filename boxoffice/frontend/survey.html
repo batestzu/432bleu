@@ -368,15 +368,31 @@ const CHOICES = {
 };
 
 // ---- Render helpers ----
+// These build nodes instead of assigning innerHTML. Every string involved is ours
+// (the CHOICES tables above, and data-name attributes we wrote into the markup), so
+// there was no live injection path — but string-built markup is what trips CodeQL's
+// js/reinterpreted-as-html, and constructing the nodes costs nothing here.
+function radio(name, value, required){
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = name;
+  input.value = value;
+  input.required = required;
+  return input;
+}
+
 function renderChoices(){
   document.querySelectorAll('.choices[data-name]').forEach(el=>{
     const name = el.dataset.name;
-    const opts = CHOICES[name] || [];
-    el.innerHTML = opts.map((opt,i)=>`
-      <label class="choice">
-        <input type="radio" name="${name}" value="${opt}" ${el.dataset.required==='true'?'required':''}>
-        <span>${opt}</span>
-      </label>`).join('');
+    const required = el.dataset.required === 'true';
+    el.replaceChildren(...(CHOICES[name] || []).map(opt=>{
+      const label = document.createElement('label');
+      label.className = 'choice';
+      const text = document.createElement('span');
+      text.textContent = opt;
+      label.append(radio(name, opt, required), text);
+      return label;
+    }));
   });
   document.querySelectorAll('.choice').forEach(label=>{
     const input = label.querySelector('input');
@@ -389,22 +405,33 @@ function renderChoices(){
 }
 
 function likertRow(name){
-  return `<div class="likert" data-name="${name}" data-scale="1-5">` +
-    [1,2,3,4,5].map(v=>`
-      <label>
-        <input type="radio" name="${name}" value="${v}" required>
-        ${LIKERT_LABELS[v-1]}
-      </label>`).join('') + `</div>`;
+  const row = document.createElement('div');
+  row.className = 'likert';
+  row.dataset.name = name;
+  row.dataset.scale = '1-5';
+  row.append(...[1,2,3,4,5].map(v=>{
+    const label = document.createElement('label');
+    label.append(radio(name, v, true), LIKERT_LABELS[v-1]);
+    return label;
+  }));
+  return row;
 }
 
 function renderLikertSection(containerId, items){
   const el = document.getElementById(containerId);
   if(!el) return;  // short form removes whole sections from the DOM
-  el.innerHTML = items.map(([id,text])=>`
-    <div class="q">
-      <p class="q-title">${text}<span class="req">*</span></p>
-      ${likertRow(id)}
-    </div>`).join('');
+  el.replaceChildren(...items.map(([id,text])=>{
+    const q = document.createElement('div');
+    q.className = 'q';
+    const title = document.createElement('p');
+    title.className = 'q-title';
+    const req = document.createElement('span');
+    req.className = 'req';
+    req.textContent = '*';
+    title.append(text, req);
+    q.append(title, likertRow(id));
+    return q;
+  }));
 }
 
 function renderStandaloneLikert(scaleType){
@@ -412,11 +439,13 @@ function renderStandaloneLikert(scaleType){
     if(el.children.length) return; // already rendered as row above
     const name = el.dataset.name;
     const [lo,hi] = scaleType.split('-').map(Number);
-    let html = '';
+    const labels = [];
     for(let v=lo; v<=hi; v++){
-      html += `<label><input type="radio" name="${name}" value="${v}" required>${v}</label>`;
+      const label = document.createElement('label');
+      label.append(radio(name, v, true), String(v));
+      labels.push(label);
     }
-    el.innerHTML = html;
+    el.replaceChildren(...labels);
   });
 }
 
