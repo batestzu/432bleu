@@ -53,8 +53,23 @@ function BoxOffice() {
   }, []);
 
   const now = new Date();
-  const upcoming = shows.filter((s) => new Date(s.dateISO) >= now);
-  const headline = upcoming[0] || shows[shows.length - 1] || null;
+  // A show holds the headline (and the GET TICKETS button) until 30 min before the
+  // NEXT show's doors. The old test was `dateISO >= now`, which dropped a show at
+  // downbeat — so on a double-bill the hero flipped to the later show one minute
+  // into the first one, and late arrivals bought the wrong night. MAX_RUN_MS is the
+  // backstop for the gap between shows: without it a finished night would headline
+  // until the next one's doors, which can be a week away.
+  const HANDOVER_MS = 30 * 60 * 1000;
+  const MAX_RUN_MS = 3 * 60 * 60 * 1000;
+  const byDate = [...shows].sort((a, b) => new Date(a.dateISO) - new Date(b.dateISO));
+  const headline = byDate.find((s, i) => {
+    const next = byDate[i + 1];
+    const ownEnd = new Date(s.dateISO).getTime() + MAX_RUN_MS;
+    const handover = next
+      ? new Date(next.doorsISO || next.dateISO).getTime() - HANDOVER_MS
+      : Infinity;
+    return now.getTime() < Math.min(ownEnd, handover);
+  }) || byDate[byDate.length - 1] || null;
   const rest = shows.filter((s) => s !== headline);
   const filtered = rest.filter((s) => {
     if (filter === 'all') return true;

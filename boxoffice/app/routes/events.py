@@ -27,7 +27,15 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
     event = db.query(Event).filter(Event.id == event_id, Event.is_active == True).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    tiers = db.query(TicketTier).filter(TicketTier.event_id == event_id).all()
+    # Explicit order or Postgres hands back heap order, which means editing a tier
+    # (set-capacity rewrites the row) silently moves it to the bottom of the page.
+    # Cheapest first, so the free/PWYC ways in lead.
+    tiers = (
+        db.query(TicketTier)
+        .filter(TicketTier.event_id == event_id)
+        .order_by(TicketTier.price_cents, TicketTier.id)
+        .all()
+    )
     return {
         "id": event.id,
         "name": event.name,
