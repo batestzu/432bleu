@@ -7,7 +7,7 @@ import type {
     RemoteVideoTrack,
 } from "livekit-client";
 import { Track, ParticipantEvent, VideoQuality } from "livekit-client";
-import type { Readable, Writable } from "svelte/store";
+import type { Readable, Unsubscriber, Writable } from "svelte/store";
 import { derived, get, writable } from "svelte/store";
 import type { SpaceUserExtended } from "../Space/SpaceInterface";
 import type { StreamableSubjects } from "../Space/SpacePeerManager/SpacePeerManager";
@@ -56,6 +56,7 @@ export class LiveKitParticipant {
     // to defaultVolume. RemotePeer keeps volume per-peer for exactly this reason.
     private _videoVolumeStore: Writable<number>;
     private _screenShareVolumeStore: Writable<number>;
+    private volumeMegaphoneUnsubscribe: Unsubscriber;
 
     private boundHandleTrackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
     private boundHandleTrackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
@@ -79,6 +80,15 @@ export class LiveKitParticipant {
         // orders parameter-property assignment against field initialisers.
         this._videoVolumeStore = writable(defaultVolume);
         this._screenShareVolumeStore = writable(defaultVolume);
+
+        // The Settings slider writes volumeMegaphoneStore, but the get() in the parameter
+        // default above is a ONE-SHOT read taken at construction. Without this subscription
+        // a mid-show slider move reached nobody already on stage -- only participants
+        // constructed afterwards -- which reads as "the slider does nothing".
+        this.volumeMegaphoneUnsubscribe = volumeMegaphoneStore.subscribe((volume) => {
+            this._videoVolumeStore.set(volume);
+            this._screenShareVolumeStore.set(volume);
+        });
 
         this.boundHandleTrackSubscribed = this.handleTrackSubscribed.bind(this);
         this.boundHandleTrackUnsubscribed = this.handleTrackUnsubscribed.bind(this);
@@ -332,6 +342,8 @@ export class LiveKitParticipant {
 
     public destroy() {
         decrementLivekitConnectionsCount();
+
+        this.volumeMegaphoneUnsubscribe();
 
         this.participant.off(ParticipantEvent.TrackSubscribed, this.boundHandleTrackSubscribed);
         this.participant.off(ParticipantEvent.TrackUnsubscribed, this.boundHandleTrackUnsubscribed);
