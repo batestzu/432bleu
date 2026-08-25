@@ -11,6 +11,7 @@ Usage:
   python manage.py deactivate <event-id>
   python manage.py mark-sold-out <event-id>
   python manage.py set-capacity <event-id> <tier-name> <capacity|none>
+  python manage.py add-tier <event-id> <tier-name> [capacity|none] [price_cents]
   python manage.py remove-tier <event-id> <tier-name>
   python manage.py export-survey [out.csv]
   python manage.py list-tickets <email>
@@ -51,6 +52,18 @@ def _parse_date(date_str):
     raise ValueError(f"Unrecognized date format: {date_str}")
 
 
+# The four tiers every show starts with. `create-event` lays down all of them and you
+# `remove-tier` the ones a given night does not use (the Two Dollar Tuesdays are
+# PWYC-only); `add-tier` puts one back using the same template, so the two commands
+# stay exact inverses and the defaults live in one place.
+DEFAULT_TIERS = {
+    "GA":   dict(label="General Admission", price_cents=0,     description="Standard access to the show",    capacity=40),
+    "PWYC": dict(label="Pay What You Can",  price_cents=0,     description="Support the band — pay any amount", capacity=60),
+    "VIP":  dict(label="VIP",               price_cents=2000,  description="Access to the VIP area",         capacity=50),
+    "MG":   dict(label="Meet & Greet",      price_cents=15000, description="Meet the band backstage",        capacity=10),
+}
+
+
 def create_event(name, date_str, description="", doors_str=None):
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -61,10 +74,7 @@ def create_event(name, date_str, description="", doors_str=None):
         db.add(event)
         db.flush()
         tiers = [
-            TicketTier(event_id=event.id, name="GA",   label="General Admission", price_cents=0,     description="Standard access to the show", capacity=40),
-            TicketTier(event_id=event.id, name="PWYC", label="Pay What You Can",  price_cents=0,     description="Support the band — pay any amount", capacity=60),
-            TicketTier(event_id=event.id, name="VIP",  label="VIP",               price_cents=2000,  description="Access to the VIP area", capacity=50),
-            TicketTier(event_id=event.id, name="MG",   label="Meet & Greet",      price_cents=15000, description="Meet the band backstage", capacity=10),
+            TicketTier(event_id=event.id, name=n, **spec) for n, spec in DEFAULT_TIERS.items()
         ]
         db.add_all(tiers)
         db.commit()
@@ -219,6 +229,43 @@ def set_capacity(event_id, tier_name, capacity):
         remaining = "unlimited" if cap is None else max(cap - tier.sold, 0)
         print(f"Event #{event_id} {tier.label}: capacity set to {shown} "
               f"({tier.sold} sold, {remaining} remaining)")
+    finally:
+        db.close()
+
+
+def add_tier(event_id, tier_name, capacity=None, price_cents=None):
+    """Put a standard tier back on an event — the inverse of `remove-tier`. Shape comes
+    from DEFAULT_TIERS so a re-added tier matches what `create-event` would have laid
+    down; capacity and price can be overridden per show. "none" capacity = unlimited."""
+    name = tier_name.upper()
+    if name not in DEFAULT_TIERS:
+        print(f"Unknown tier '{tier_name}'. Known: {', '.join(DEFAULT_TIERS)}")
+        return
+    db = SessionLocal()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            print(f"Event #{event_id} not found")
+            return
+        existing = db.query(TicketTier).filter(
+            TicketTier.event_id == event_id,
+            TicketTier.name == name,
+        ).first()
+        if existing:
+            print(f"Tier '{name}' already exists on #{event_id} "
+                  f"(capacity {existing.capacity}, {existing.sold} sold). "
+                  f"Use set-capacity to change it.")
+            return
+        spec = dict(DEFAULT_TIERS[name])
+        if capacity is not None:
+            spec["capacity"] = None if str(capacity).lower() in ("none", "unlimited", "") else int(capacity)
+        if price_cents is not None:
+            spec["price_cents"] = int(price_cents)
+        db.add(TicketTier(event_id=event_id, name=name, **spec))
+        db.commit()
+        cap = "unlimited" if spec["capacity"] is None else spec["capacity"]
+        print(f"Added {name} to #{event_id} ({event.name}): "
+              f"{spec['price_cents']}c, capacity {cap}")
     finally:
         db.close()
 
@@ -547,6 +594,13 @@ if __name__ == "__main__":
             print("Usage: python manage.py set-capacity <event-id> <tier-name> <capacity|none>")
         else:
             set_capacity(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "add-tier":
+        if len(sys.argv) < 4:
+            print("Usage: python manage.py add-tier <event-id> <tier-name> [capacity|none] [price_cents]")
+        else:
+            add_tier(int(sys.argv[2]), sys.argv[3],
+                     sys.argv[4] if len(sys.argv) > 4 else None,
+                     sys.argv[5] if len(sys.argv) > 5 else None)
     elif cmd == "remove-tier":
         if len(sys.argv) < 4:
             print("Usage: python manage.py remove-tier <event-id> <tier-name>")
