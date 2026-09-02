@@ -38,6 +38,13 @@ if [ -f /home/vspot/loop.pid ]; then
     rm -f /home/vspot/loop.pid
 fi
 
+# The loop's Icecast leg must release the mountpoint before the show's audio
+# relay can take it (Icecast allows one source per mount).
+if [ -f /home/vspot/loop_audio.pid ]; then
+    kill "$(cat /home/vspot/loop_audio.pid)" 2>/dev/null
+    rm -f /home/vspot/loop_audio.pid
+fi
+
 # Kill any stale relay
 if [ -f /home/vspot/relay.pid ]; then
     kill "$(cat /home/vspot/relay.pid)" 2>/dev/null
