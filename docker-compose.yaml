@@ -49,9 +49,9 @@ services:
       ENABLE_MAP_EDITOR: "$ENABLE_MAP_EDITOR"
       HOST: "0.0.0.0"
       NODE_ENV: production
-      ALLOWED_CORS_ORIGIN: "https://play.432bleu.com"
-      PUSHER_URL: https://play.432bleu.com
-      FRONT_URL: https://front.432bleu.com
+      ALLOWED_CORS_ORIGIN: "${WEB_SCHEME:-https}://play.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}"
+      PUSHER_URL: ${WEB_SCHEME:-https}://play.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}
+      FRONT_URL: ${WEB_SCHEME:-https}://front.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}
       UPLOADER_URL: http://uploader.workadventure.localhost
       ICON_URL: http://icon.workadventure.localhost
       STUN_SERVER: "${STUN_SERVER:-}"
@@ -90,7 +90,7 @@ services:
       DISABLE_ANONYMOUS: $DISABLE_ANONYMOUS
       #Map editor
       # Browser-facing: MUST be https or it is blocked as mixed content on an https page.
-      PUBLIC_MAP_STORAGE_URL: "https://mapstorage.432bleu.com"
+      PUBLIC_MAP_STORAGE_URL: "${WEB_SCHEME:-https}://mapstorage.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}"
       INTERNAL_MAP_STORAGE_URL: "http://map-storage:3000"
       REDIS_HOST: redis
       ENABLE_OPENAPI_ENDPOINT: "true"
@@ -159,7 +159,7 @@ services:
       MATRIX_PUBLIC_URI: ${MATRIX_PUBLIC_URI:-}
       MATRIX_ADMIN_USER: admin
       MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
-      MATRIX_DOMAIN: matrix.432bleu.com
+      MATRIX_DOMAIN: matrix.${BASE_DOMAIN:-432bleu.com}
       # oEmbed providers
       EMBEDLY_KEY: "$EMBEDLY_KEY"
       # Map editor restrictions.
@@ -178,7 +178,7 @@ services:
     labels:
       - "traefik.enable=true"
 
-      - "traefik.http.routers.front.rule=Host(`front.432bleu.com`)"
+      - "traefik.http.routers.front.rule=Host(`front.${BASE_DOMAIN:-432bleu.com}`)"
       - "traefik.http.routers.front.service=front"
       - "traefik.http.services.front.loadbalancer.server.port=3000"
 
@@ -187,12 +187,12 @@ services:
       - "traefik.http.services.room-api.loadbalancer.server.port=50051"
       - "traefik.http.services.room-api.loadbalancer.server.scheme=h2c"
 
-      - "traefik.http.routers.play.rule=Host(`432bleu.com`) || Host(`play.432bleu.com`)"
+      - "traefik.http.routers.play.rule=Host(`${BASE_DOMAIN:-432bleu.com}`) || Host(`play.${BASE_DOMAIN:-432bleu.com}`)"
       - "traefik.http.routers.play.priority=1"
       - "traefik.http.routers.play.service=play"
       - "traefik.http.services.play.loadbalancer.server.port=3000"
 
-      - "traefik.http.routers.play-ws.rule=Host(`432bleu.com`) || Host(`play.432bleu.com`) && PathPrefix(`/ws/`)"
+      - "traefik.http.routers.play-ws.rule=Host(`${BASE_DOMAIN:-432bleu.com}`) || Host(`play.${BASE_DOMAIN:-432bleu.com}`) && PathPrefix(`/ws/`)"
       - "traefik.http.routers.play-ws.priority=2"
       - "traefik.http.routers.play-ws.service=play-ws"
       - "traefik.http.services.play-ws.loadbalancer.server.port=3001"
@@ -204,7 +204,7 @@ services:
       DEBUG_MODE: "$DEBUG_MODE"
       HOST: "0.0.0.0"
       NODE_ENV: production
-      FRONT_URL: https://front.432bleu.com
+      FRONT_URL: ${WEB_SCHEME:-https}://front.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}
       #APACHE_DOCUMENT_ROOT: dist/
       #APACHE_EXTENSIONS: headers
       #APACHE_EXTENSION_HEADERS: 1
@@ -214,7 +214,7 @@ services:
       - ./maps:/var/www/html
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.maps.rule=Host(`maps.432bleu.com`)"
+      - "traefik.http.routers.maps.rule=Host(`maps.${BASE_DOMAIN:-432bleu.com}`)"
       - "traefik.http.routers.maps.entryPoints=web,traefik"
       - "traefik.http.services.maps.loadbalancer.server.port=80"
 
@@ -253,7 +253,7 @@ services:
       MAP_STORAGE_URL: "map-storage:50053"
       # Public URL is rewritten to the internal one before fetching (GameRoom.ts:182),
       # but it must match what the browser sees or upload-refresh signals miss.
-      PUBLIC_MAP_STORAGE_URL: "https://mapstorage.432bleu.com"
+      PUBLIC_MAP_STORAGE_URL: "${WEB_SCHEME:-https}://mapstorage.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}"
       INTERNAL_MAP_STORAGE_URL: "http://map-storage:3000"
       PLAYER_VARIABLES_MAX_TTL: $PLAYER_VARIABLES_MAX_TTL
       ENABLE_CHAT: "$ENABLE_CHAT"
@@ -298,7 +298,7 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       PATH_PREFIX: ""
       MAP_STORAGE_API_TOKEN: "${MAP_STORAGE_API_TOKEN}"
-      PUSHER_URL: https://play.432bleu.com
+      PUSHER_URL: ${WEB_SCHEME:-https}://play.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}
       WHITELISTED_RESOURCE_URLS: ""
       SECRET_KEY: "$SECRET_KEY"
     volumes:
@@ -308,11 +308,11 @@ services:
       - "9233:9229"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.map-storage.rule=Host(`mapstorage.432bleu.com`)"
+      - "traefik.http.routers.map-storage.rule=Host(`mapstorage.${BASE_DOMAIN:-432bleu.com}`)"
       - "traefik.http.routers.map-storage.entryPoints=web"
       - "traefik.http.routers.map-storage.service=map-storage"
       - "traefik.http.services.map-storage.loadbalancer.server.port=3000"
-      - "traefik.http.routers.map-storage-ui.rule=Host(`mapstorage.432bleu.com`) && PathPrefix(`/ui/`)"
+      - "traefik.http.routers.map-storage-ui.rule=Host(`mapstorage.${BASE_DOMAIN:-432bleu.com}`) && PathPrefix(`/ui/`)"
       - "traefik.http.routers.map-storage-ui.entryPoints=web"
       - "traefik.http.routers.map-storage-ui.service=map-storage-ui"
       - "traefik.http.services.map-storage-ui.loadbalancer.server.port=8080"
@@ -516,21 +516,21 @@ services:
     entrypoint: /data/start.sh
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.matrix.rule=Host(`matrix.432bleu.com`)"
+      - "traefik.http.routers.matrix.rule=Host(`matrix.${BASE_DOMAIN:-432bleu.com}`)"
       - "traefik.http.routers.matrix.entryPoints=web"
       - "traefik.http.services.matrix.loadbalancer.server.port=8008"
       - "traefik.http.routers.matrix.service=matrix"
     volumes:
       - ./synapse:/data/
       #- ./synapse/homeserver.template.yaml:/data/homeserver.template.yaml
-      - ./synapse/federation:/etc/nginx/vhost.d/matrix.432bleu.com
+      - ./synapse/federation:/etc/nginx/vhost.d/matrix.${BASE_DOMAIN:-432bleu.com}
     environment:
-      VIRTUAL_HOST: "matrix.432bleu.com"
+      VIRTUAL_HOST: "matrix.${BASE_DOMAIN:-432bleu.com}"
       VIRTUAL_PORT: 8008
-      LETSENCRYPT_HOST: "matrix.432bleu.com"
+      LETSENCRYPT_HOST: "matrix.${BASE_DOMAIN:-432bleu.com}"
       # Baked into every Matrix user ID (@user:server_name). Must be correct BEFORE
       # the first registration -- changing it later orphans every account.
-      SYNAPSE_SERVER_NAME: "matrix.432bleu.com"
+      SYNAPSE_SERVER_NAME: "matrix.${BASE_DOMAIN:-432bleu.com}"
       SYNAPSE_REPORT_STATS: "yes"
       MATRIX_ADMIN_USER: admin
       MATRIX_ADMIN_PASSWORD: "${MATRIX_ADMIN_PASSWORD}"
@@ -609,8 +609,8 @@ services:
     build: ./boxoffice
     environment:
       DATABASE_URL: postgresql://boxoffice:boxoffice@postgres:5432/boxoffice
-      PLAY_URL: https://play.432bleu.com
-      BOXOFFICE_DOMAIN: https://boxoffice.432bleu.com
+      PLAY_URL: ${WEB_SCHEME:-https}://play.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}
+      BOXOFFICE_DOMAIN: ${WEB_SCHEME:-https}://boxoffice.${BASE_DOMAIN:-432bleu.com}${WEB_PORT:-}
       STRIPE_SECRET_KEY: "$STRIPE_SECRET_KEY"
       STRIPE_WEBHOOK_SECRET: "$STRIPE_WEBHOOK_SECRET"
       SENDGRID_API_KEY: "$SENDGRID_API_KEY"
@@ -630,7 +630,7 @@ services:
 
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.boxoffice.rule=Host(`boxoffice.432bleu.com`)"
+      - "traefik.http.routers.boxoffice.rule=Host(`boxoffice.${BASE_DOMAIN:-432bleu.com}`)"
       - "traefik.http.routers.boxoffice.entryPoints=web"
       - "traefik.http.routers.boxoffice.priority=100"
       - "traefik.http.services.boxoffice.loadbalancer.server.port=8000"
@@ -670,7 +670,7 @@ services:
       # also expose /_a/api/auth/login and hand the internet a login form to
       # brute-force through a path that looks like analytics.
       - "traefik.enable=true"
-      - "traefik.http.routers.umami-tracker.rule=Host(`boxoffice.432bleu.com`) && (Path(`/_a/script.js`) || Path(`/_a/api/send`))"
+      - "traefik.http.routers.umami-tracker.rule=Host(`boxoffice.${BASE_DOMAIN:-432bleu.com}`) && (Path(`/_a/script.js`) || Path(`/_a/api/send`))"
       - "traefik.http.routers.umami-tracker.entryPoints=web"
       # Above boxoffice's 100 so these two paths win over its catch-all Host rule.
       - "traefik.http.routers.umami-tracker.priority=200"
