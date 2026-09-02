@@ -682,6 +682,21 @@ services:
       postgres:
         condition: service_started
 
+  # Never Silent: audio bed for the lobby/bar playAudio zones. Sources are the
+  # on_publish.sh / start_loop.sh audio legs (host-side, scripts/vps/). Bound to
+  # loopback only; Caddy terminates TLS for icecast.432bleu.com in front of it.
+  # Set the ICECAST_* passwords in .env BEFORE first `up -d icecast`.
+  icecast:
+    restart: unless-stopped
+    image: libretime/icecast:2.4.4
+    ports:
+      - "127.0.0.1:8005:8000"
+    environment:
+      ICECAST_SOURCE_PASSWORD: "${ICECAST_SOURCE_PASSWORD:-}"
+      ICECAST_ADMIN_PASSWORD: "${ICECAST_ADMIN_PASSWORD:-}"
+      ICECAST_RELAY_PASSWORD: "${ICECAST_RELAY_PASSWORD:-}"
+      ICECAST_HOSTNAME: "icecast.${BASE_DOMAIN:-432bleu.com}"
+
 volumes:
   postgres-data:
     external: true

@@ -10,6 +10,12 @@ if [ -f /home/vspot/relay.pid ]; then
     rm -f /home/vspot/relay.pid
 fi
 
+# Kill the Icecast audio leg alongside it
+if [ -f /home/vspot/audio_relay.pid ]; then
+    kill "$(cat /home/vspot/audio_relay.pid)" 2>/dev/null
+    rm -f /home/vspot/audio_relay.pid
+fi
+
 sleep 8
 
 # Retry up to 5 times in case Owncast hasn't fully released yet

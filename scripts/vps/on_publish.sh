@@ -10,6 +10,14 @@ log() {
 
 log "publish started (name=$INCOMING)"
 
+# Refuse unknown stream keys. nginx-rtmp's exec_publish cannot reject the TCP
+# publisher itself, but exiting here means an unknown key is never relayed to
+# Owncast or Icecast -- the house loop just keeps playing over it.
+if [ -n "$STREAM_KEY" ] && [ "$INCOMING" != "$STREAM_KEY" ]; then
+    log "REFUSED unknown stream key '$INCOMING'"
+    exit 1
+fi
+
 # Kill existing loop and WAIT for it to actually exit.
 # Owncast only frees the RTMP slot once the loop's connection is really gone,
 # so returning as soon as kill() is sent is what caused the 2026-07-27 race:
@@ -39,6 +47,33 @@ fi
 # Let Owncast notice the closed connection before the first attempt.
 sleep 2
 
+# Audio-only leg -> Icecast, so the lobby/bar playAudio zones carry the show.
+# Stays a no-op until ICECAST_SOURCE_PASSWORD is set in owncast.conf.
+start_audio_relay() {
+    [ -n "$ICECAST_SOURCE_PASSWORD" ] || { log "icecast leg skipped (no ICECAST_SOURCE_PASSWORD)"; return 0; }
+    if [ -f /home/vspot/audio_relay.pid ]; then
+        kill "$(cat /home/vspot/audio_relay.pid)" 2>/dev/null
+        rm -f /home/vspot/audio_relay.pid
+    fi
+    for a in 1 2 3; do
+        ffmpeg -i "rtmp://localhost:1935/live/$INCOMING" -vn -c:a libmp3lame -b:a 128k \
+            -content_type audio/mpeg -f mp3 \
+            "icecast://source:$ICECAST_SOURCE_PASSWORD@127.0.0.1:${ICECAST_PORT:-8005}/live.mp3" \
+            >> /home/vspot/audio_relay.log 2>&1 &
+        AUDIO_PID=$!
+        echo "$AUDIO_PID" > /home/vspot/audio_relay.pid
+        sleep 3
+        if kill -0 "$AUDIO_PID" 2>/dev/null; then
+            log "audio relay running (attempt $a, pid $AUDIO_PID)"
+            return 0
+        fi
+        log "audio relay attempt $a failed, retrying..."
+        rm -f /home/vspot/audio_relay.pid
+        sleep 2
+    done
+    log "AUDIO RELAY FAILED after 3 attempts (video relay unaffected)"
+}
+
 # Retry up to 5 times in case Owncast still hasn't released the slot.
 # ffmpeg exits within about a second when the slot is busy, so a liveness
 # check after a short sleep distinguishes a real failure from a good relay.
@@ -52,6 +87,7 @@ for i in 1 2 3 4 5; do
     sleep 3
     if kill -0 "$RELAY_PID" 2>/dev/null; then
         log "relay running (attempt $i, pid $RELAY_PID)"
+        start_audio_relay
         exit 0
     fi
     log "relay attempt $i failed, retrying..."
