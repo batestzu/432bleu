@@ -1,0 +1,30 @@
+# Stream and healthcheck logs for the 432 Bleu venue.
+#
+# loop.log reached 429 MB before 2026-09-04, almost all of it ffmpeg progress
+# counters on a single line, which made reading it during an incident painful and
+# was quietly eating the disk. The scripts now run ffmpeg with -nostats and send
+# its output to the *_ffmpeg.log files, so volume is far lower -- but nothing was
+# ever rotating these, so they only ever grew.
+#
+# copytruncate is required: the ffmpeg legs and the publish hooks hold these files
+# open for days at a time and none of them will reopen a log on signal.
+
+/home/vspot/loop.log
+/home/vspot/loop_audio.log
+/home/vspot/relay.log
+/home/vspot/audio_relay.log
+/home/vspot/loop_ffmpeg.log
+/home/vspot/relay_ffmpeg.log
+/home/vspot/healthcheck.log
+{
+    weekly
+    rotate 6
+    maxsize 50M
+    copytruncate
+    compress
+    delaycompress
+    missingok
+    notifempty
+    su vspot vspot
+    create 0664 vspot vspot
+}
