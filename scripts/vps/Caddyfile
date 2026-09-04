@@ -1,0 +1,77 @@
+# 432 Bleu edge config. LIVE COPY IS /etc/caddy/Caddyfile ON THE VPS HOST.
+#
+# Caddy runs on the host, NOT in Docker, so it is not part of docker-compose and
+# nothing deploys this file for you. This copy is tracked so the ticket gate stops
+# being invisible to the repo; it is a mirror, not the source of truth.
+#
+# To change it:
+#   scp scripts/vps/Caddyfile root@432bleu.com:/tmp/Caddyfile.new
+#   ssh root@432bleu.com 'cp -p /etc/caddy/Caddyfile /root/Caddyfile.bak && cp /tmp/Caddyfile.new /etc/caddy/Caddyfile'
+#   ssh root@432bleu.com 'caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile'
+#   ssh root@432bleu.com 'systemctl reload caddy'
+#
+# Then ALWAYS probe the gate in both directions before walking away: an anonymous
+# request to / and to /~/concert.wam must 302 to boxoffice /enter, and a real ticket
+# code must still get in. A gate that silently opened is how the 2026-08-13 show
+# served the venue to the whole internet.
+
+432bleu.com {
+    redir https://boxoffice.432bleu.com{uri} permanent
+}
+
+play.432bleu.com {
+    # The pre-2026-08 room link. It resolves to a DIFFERENT room from the venue, so
+    # anyone arriving on it stands in an empty copy and sees nobody. It took 99 hits
+    # on the night of 2026-09-03 alone. It is not in the box office or the repo, so
+    # it survives in bookmarks and old flyers and cannot be edited at the source.
+    # handle blocks are mutually exclusive and evaluated in order, which keeps this
+    # ahead of the gate without depending on Caddy's directive ordering.
+    # NOTE the explicit `*` matcher: `redir /~/concert.wam permanent` does NOT work,
+    # because Caddy reads a leading-slash first argument as an inline path matcher and
+    # then treats "permanent" as the destination. Written that way the block matches
+    # nothing, answers 200, and silently drops the ticket gate on this path.
+    @legacy_room path /_/global/maps.432bleu.com/concert.json
+    handle @legacy_room {
+        redir * /~/concert.wam permanent
+    }
+
+    handle {
+        @gate_root path / /~/* /_/* /@/*
+        forward_auth @gate_root localhost:8080 {
+            uri /api/gate/check
+            header_up Host boxoffice.432bleu.com
+        }
+        reverse_proxy localhost:8080
+    }
+}
+
+front.432bleu.com {
+    reverse_proxy localhost:8080
+}
+
+owncast.432bleu.com {
+    reverse_proxy localhost:8085
+}
+
+boxoffice.432bleu.com {
+    reverse_proxy localhost:8080
+}
+
+maps.432bleu.com {
+    reverse_proxy localhost:8080
+}
+livekit.432bleu.com {
+    reverse_proxy localhost:7880
+}
+
+turn.432bleu.com {
+    respond "OK"
+}
+
+mapstorage.432bleu.com {
+    reverse_proxy localhost:8080
+}
+
+icecast.432bleu.com {
+    reverse_proxy localhost:8005
+}
