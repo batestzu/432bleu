@@ -23,6 +23,21 @@
     let unsubscriberVolumeStore: Unsubscriber | null = null;
     let retryPlayStoreSubscription: Subscription | null = null;
 
+    /**
+     * Stop playback and let go of the media resource, without destroying the
+     * element. Pausing alone is not enough: the zone audio is a live stream, so a
+     * merely-paused player holds its connection open for the rest of the session.
+     * Clearing the source and re-loading releases both the connection and the
+     * browser's audio stream, and the element stays available for the next zone.
+     */
+    function releasePlayer(): void {
+        if (!HTMLAudioPlayer) return;
+        HTMLAudioPlayer.onprogress = null;
+        HTMLAudioPlayer.pause();
+        HTMLAudioPlayer.removeAttribute("src");
+        HTMLAudioPlayer.load();
+    }
+
     onMount(() => {
         let volume = Math.min(localUserStore.getAudioPlayerVolume(), get(audioManagerVolumeStore).volume);
         audioManagerVolumeStore.setVolume(volume);
@@ -31,12 +46,8 @@
         unsubscriberFileStore = audioManagerFileStore.subscribe((src: string) => {
             (async () => {
                 if (src == "") {
-                    try {
-                        HTMLAudioPlayer.pause();
-                    } catch (error) {
-                        console.warn("The audio player is not paused, so we create a new one", error);
-                    }
-                    if (HTMLAudioPlayer) HTMLAudioPlayer.onprogress = null;
+                    // Left the audio zone.
+                    releasePlayer();
                     return;
                 }
                 await tick();
@@ -61,15 +72,12 @@
                 HTMLAudioPlayer.muted = audioManager.muted;
                 HTMLAudioPlayer.loop = audioManager.loop;
                 // Use paused attribute to manage audio
-                if (audioManager.paused || audioManager.stopped) {
-                    try {
-                        HTMLAudioPlayer.pause();
-                    } catch (error) {
-                        console.warn("The audio player is not paused, so we create a new one", error);
-                    }
-                    if (audioManager.stopped) {
-                        if (HTMLAudioPlayer) HTMLAudioPlayer.onprogress = null;
-                    }
+                if (audioManager.stopped) {
+                    // Done with this sound: let go of the stream and its connection.
+                    releasePlayer();
+                } else if (audioManager.paused) {
+                    // Paused is resumable, so keep the source loaded.
+                    HTMLAudioPlayer.pause();
                 } else {
                     HTMLAudioPlayer.muted = false;
                     HTMLAudioPlayer.play().catch(console.error);
@@ -93,6 +101,16 @@
         }
         retryPlayStoreSubscription?.unsubscribe();
         audioManagerPlayerState.set(undefined);
+
+        // Release the media resource explicitly. Detaching an element that has
+        // played leaves its audio stream held until GC, and GC may never come --
+        // see the note on the <audio> tag below.
+        if (HTMLAudioPlayer) {
+            HTMLAudioPlayer.onended = null;
+            HTMLAudioPlayer.onerror = null;
+            HTMLAudioPlayer.onloadstart = null;
+        }
+        releasePlayer();
     });
 
     function tryPlay() {
@@ -169,6 +187,22 @@
     }
 </script>
 
-{#if $audioManagerFileStore !== "" && $audioManagerVolumeStore.stopped === false}
-    <audio preload="auto" class="audio-manager-audioplayer" bind:this={HTMLAudioPlayer} />
-{/if}
+<!--
+    This element is deliberately NOT inside an {#if}. It must be created once and
+    reused for the whole session.
+
+    It used to be gated on the zone store, so every entry to an audio zone built a
+    fresh <audio> and every exit destroyed it. Destroying a media element that has
+    played does not release its audio stream: Firefox keeps one per abandoned
+    element, corked, until a garbage collection that is not guaranteed to come.
+    PulseAudio caps a sink at 256 streams, and past that NOTHING on the machine can
+    play audio at all -- which is how the venue went silent and stayed silent.
+
+    Measured on Firefox 154: recreating the element 20 times leaks 20 streams,
+    permanently. Reusing one element across the same 20 entries holds at one.
+
+    The gate is also what made HTMLAudioPlayer undefined while the store
+    subscriptions still held a reference, producing the "audio player is not
+    paused, so we create a new one" warnings and the pause() TypeError beneath them.
+-->
+<audio preload="auto" class="audio-manager-audioplayer" bind:this={HTMLAudioPlayer} />

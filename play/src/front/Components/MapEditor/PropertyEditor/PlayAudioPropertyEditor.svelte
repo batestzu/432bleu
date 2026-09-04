@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onDestroy } from "svelte";
     import type { PlayAudioPropertyData } from "@workadventure/map-editor";
     import { LL } from "../../../../i18n/i18n-svelte";
     import RangeSlider from "../../Input/RangeSlider.svelte";
@@ -21,6 +21,19 @@
     let HTMLAudioPlayer: HTMLAudioElement;
     let playing = false;
     let errorMessage = "";
+
+    // Closing the editor detaches this element. If it has played, its audio stream
+    // is held until a garbage collection that may never come, and PulseAudio stops
+    // accepting new streams on a sink after 256 of them. Release it by hand.
+    onDestroy(() => {
+        if (HTMLAudioPlayer) {
+            HTMLAudioPlayer.onended = null;
+            HTMLAudioPlayer.onerror = null;
+            HTMLAudioPlayer.pause();
+            HTMLAudioPlayer.removeAttribute("src");
+            HTMLAudioPlayer.load();
+        }
+    });
 
     function playAudio() {
         if (!property.audioLink) {
