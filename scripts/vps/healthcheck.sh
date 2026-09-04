@@ -46,6 +46,31 @@ else
     FAILED="$FAILED owncast-source"
 fi
 
+# The venue's audio bed. Owncast being online says nothing about Icecast: on 2026-09-03 a
+# stalled publisher left the mount sourceless and the lobby was silent while every container
+# reported healthy. Read the status JSON -- Icecast answers EVERY HEAD request with 400 whether
+# the mount is fine or not, so a `curl -I` probe here would be permanently and misleadingly red.
+if curl -s --max-time 15 https://icecast.432bleu.com/status-json.xsl 2>/dev/null \
+     | grep -q '"listenurl":"[^"]*/live\.mp3"'; then
+    echo "  OK   icecast-bed (source mounted on /live.mp3)"
+else
+    echo "  FAIL icecast-bed (no source on /live.mp3 -- the lobby zones are SILENT)"
+    FAILED="$FAILED icecast-bed"
+fi
+
+# LiveKit runs on the host network and dials Redis at 127.0.0.1:6379. That port is published
+# only by docker-compose.livekit.yaml, so a redis recreated from the base compose file alone
+# silently removes it: every proximity bubble fails while every container still reports Up.
+# That ran undetected for 17 days and through two shows. Test the PORT, not the container --
+# "redis is running" was true the entire time it was broken.
+if timeout 5 bash -c 'exec 3<>/dev/tcp/127.0.0.1/6379' 2>/dev/null; then
+    echo "  OK   livekit-redis (127.0.0.1:6379 reachable)"
+else
+    echo "  FAIL livekit-redis (127.0.0.1:6379 refused -- proximity chat and megaphone are broken;"
+    echo "       fix: docker compose -f docker-compose.yaml -f docker-compose.livekit.yaml up -d redis)"
+    FAILED="$FAILED livekit-redis"
+fi
+
 # Any container that exited is a problem: prod services should all carry a restart policy.
 # Note: "could not check" must FAIL, never silently pass -- a monitor that reports healthy
 # when it was unable to look is worse than no monitor at all.
