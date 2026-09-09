@@ -1,7 +1,9 @@
+import mimetypes
 import os
+import re
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -66,10 +68,65 @@ app.mount("/static", StaticFiles(directory="/app/frontend/static"), name="static
 # would take the whole box office down over an absent video.
 MEDIA_DIR = "/app/media"
 os.makedirs(MEDIA_DIR, exist_ok=True)
-# Inherits the default Cache-Control: no-cache from the middleware above, on purpose --
-# footage gets replaced under the same filename while a cut is being iterated on, and
-# revalidation makes the new file appear on the next load instead of after a TTL.
-app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
+# Served by hand rather than with StaticFiles because this pinned starlette (0.38.6,
+# held there by fastapi 0.115) has no Range support in FileResponse, and video needs
+# it: Safari opens a video with `Range: bytes=0-1` and refuses to play at all if the
+# reply is a 200 instead of a 206. Upgrading starlette would drag the whole web stack
+# along, so /media answers ranges itself. Everything here inherits the default
+# Cache-Control: no-cache, on purpose -- footage gets replaced under the same filename
+# while a cut is iterated on, and revalidation shows the new file on the next load.
+_RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
+_MEDIA_CHUNK = 256 * 1024
+
+
+@app.get("/media/{filename}")
+def media(filename: str, request: Request):
+    """Serve one file out of the host bind-mount, honouring HTTP Range."""
+    # The path parameter cannot contain a slash, so traversal is already impossible;
+    # the basename comparison keeps that true if this is ever changed to {path:path}.
+    if filename != os.path.basename(filename) or filename.startswith("."):
+        raise HTTPException(status_code=404)
+    path = os.path.join(MEDIA_DIR, filename)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404)
+
+    size = os.path.getsize(path)
+    ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    headers = {"Accept-Ranges": "bytes"}
+
+    match = _RANGE_RE.match((request.headers.get("range") or "").strip())
+    if match is None or not (match.group(1) or match.group(2)):
+        # No range, or a form we do not implement (multi-range): a full 200 is a
+        # legal answer to any Range request, so fall back rather than fail.
+        return FileResponse(path, media_type=ctype, headers=headers)
+
+    if match.group(1):
+        start = int(match.group(1))
+        end = int(match.group(2)) if match.group(2) else size - 1
+    else:
+        # Suffix form: "bytes=-500" means the LAST 500 bytes, not the first 500.
+        suffix = int(match.group(2))
+        start, end = (max(size - suffix, 0), size - 1) if suffix else (0, -1)
+
+    end = min(end, size - 1)
+    if start > end or start >= size:
+        return Response(status_code=416,
+                        headers={"Content-Range": "bytes */%d" % size, "Accept-Ranges": "bytes"})
+
+    def stream():
+        remaining = end - start + 1
+        with open(path, "rb") as handle:
+            handle.seek(start)
+            while remaining > 0:
+                chunk = handle.read(min(_MEDIA_CHUNK, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+
+    headers["Content-Range"] = "bytes %d-%d/%d" % (start, end, size)
+    headers["Content-Length"] = str(end - start + 1)
+    return StreamingResponse(stream(), status_code=206, media_type=ctype, headers=headers)
 
 
 @app.get("/")
