@@ -16,6 +16,8 @@
  * Env: BOTS (32) | RAMP_MS (1500) | DURATION_S (900) | SEED (1) | PLAY_URL | ROOM_ID
  *      MAP_TMJ (unset)  — path to a concert.tmj copy; without it, placement is collision-blind
  *      CROWD_X/CROWD_Y/SPREAD — where the crowd gathers, in px
+ *      STATIONARY ("18,6 22,6 19,2 13,6") — EXTRA bots that never move, at these TILE pairs.
+ *        Exempt from the row band, so they may stand on the stage side. "" places none.
  *      MIN_TILE_Y/MAX_TILE_Y (11/29) — confine the cast to these TILE rows, any column. Default is
  *        the audience floor: concert.tmj rows 9-10 are the wall under the stage, row 29 the bottom
  *        wall. Keep CROWD_Y inside the band.
@@ -69,12 +71,34 @@ const MAP_W = 1280, MAP_H = 960, MARGIN = 120;
 // range reads as the whole floor.
 const MIN_TILE_Y = parseInt(process.env.MIN_TILE_Y ?? "11", 10);
 const MAX_TILE_Y = parseInt(process.env.MAX_TILE_Y ?? "29", 10);
-const TILE_H = 32;
+const TILE_W = 32, TILE_H = 32;
 const BAND_TOP_PX = MIN_TILE_Y * TILE_H;               // inclusive upper edge
 const BAND_BOTTOM_PX = (MAX_TILE_Y + 1) * TILE_H;      // exclusive lower edge
 function inBand(y: number): boolean {
     return y >= BAND_TOP_PX && y < BAND_BOTTOM_PX;
 }
+
+/**
+ * Fixed bots that never move — the band above does not apply to them, so they can stand on the
+ * stage side of the wall. Space-separated TILE pairs, "x,y"; set STATIONARY="" to place none.
+ * These are EXTRA, on top of BOTS.
+ */
+const STATIONARY_KEEPALIVE_S = 15;
+function parseStationary(spec: string): [number, number][] {
+    return spec.split(/[\s;]+/).filter(Boolean).map((pair) => {
+        const m = /^(\d+),(\d+)$/.exec(pair);
+        if (!m) {
+            console.error(`STATIONARY: cannot parse "${pair}" — expected tile pairs like "18,6"`);
+            process.exit(1);
+        }
+        return [
+            parseInt(m[1], 10) * TILE_W + TILE_W / 2,
+            parseInt(m[2], 10) * TILE_H + TILE_H / 2,
+        ] as [number, number];
+    });
+}
+const STATIONARY = parseStationary(process.env.STATIONARY ?? "18,6 22,6 19,2 13,6");
+const TOTAL = BOTS + STATIONARY.length;
 
 const WALK_PERIOD_S = 20, WALK_DUTY_S = 4;
 const ORBIT_R = 26;
@@ -167,8 +191,11 @@ function insideStage(x: number, y: number): boolean {
 }
 
 let anchorPool: [number, number][] | null = null;
+let walkableSet: Set<string> | null = null;
 if (MAP_TMJ) {
-    const tiles = walkableTiles(MAP_TMJ).filter(([x, y]) => !insideStage(x, y) && inBand(y));
+    const all = walkableTiles(MAP_TMJ);
+    walkableSet = new Set(all.map(([x, y]) => `${x},${y}`));
+    const tiles = all.filter(([x, y]) => !insideStage(x, y) && inBand(y));
     anchorPool = tiles;
     console.log(`placement: ${tiles.length} walkable tiles from ${MAP_TMJ}, stage excluded, rows ${MIN_TILE_Y}-${MAX_TILE_Y} only`);
     if (tiles.length === 0) {
@@ -178,6 +205,21 @@ if (MAP_TMJ) {
 } else {
     console.warn("placement: MAP_TMJ not set — collision-blind, bots may stand in walls.");
     console.warn("           scp root@432bleu.com:/home/vspot/workadventure/map-storage/public/concert.tmj .");
+}
+
+// A fixed position is a deliberate choice, so a collision is a warning rather than a hard stop —
+// but it is worth saying out loud, because the server does not validate movement and the bot will
+// simply stand inside whatever is there.
+if (STATIONARY.length) {
+    const where = STATIONARY.map(([x, y]) => `(${(x - TILE_W / 2) / TILE_W},${(y - TILE_H / 2) / TILE_H})`).join(" ");
+    console.log(`stationary: ${STATIONARY.length} fixed bot(s) at tiles ${where} — exempt from the row band`);
+    if (walkableSet) {
+        for (const [x, y] of STATIONARY) {
+            if (!walkableSet.has(`${x},${y}`)) {
+                console.warn(`stationary: ⚠ tile (${(x - TILE_W / 2) / TILE_W},${(y - TILE_H / 2) / TILE_H}) is a COLLISION tile — that bot will stand inside scenery`);
+            }
+        }
+    }
 }
 
 /** Rejection-sample the gathering point so the crowd clusters without ever leaving the floor. */
@@ -259,11 +301,11 @@ function moveMsg(x: number, y: number, direction: PositionMessage_Direction, mov
     }).finish();
 }
 
-async function startBot(n: number, token: string | null): Promise<void> {
+async function startBot(n: number, token: string | null, fixed?: [number, number]): Promise<void> {
     const rand = mulberry(SEED * 7919 + n + 1);
     const name = NAMES[n % NAMES.length] + (n >= NAMES.length ? String(Math.floor(n / NAMES.length) + 1) : "");
     const textures = look(rand);
-    const [ax, ay] = anchorFor(rand);
+    const [ax, ay] = fixed ?? anchorFor(rand);
     const rest = facing(ax, ay);
 
     let angle = rand() * Math.PI * 2;
@@ -276,6 +318,24 @@ async function startBot(n: number, token: string | null): Promise<void> {
     ws.on("open", () => {
         stats.connected++;
         alive = true;
+
+        if (fixed) {
+            // Never walks. One settled frame so every client renders it standing and facing the
+            // stage, then the same frame on a slow keepalive — a socket that goes completely
+            // silent for the whole session is a good way to get reaped by an idle timeout.
+            const settle = () => {
+                if (ws.readyState !== WebSocket.OPEN) return;
+                ws.send(moveMsg(ax, ay, rest, false));
+                stats.movesSent++;
+            };
+            setTimeout(settle, 500);
+            const keep = setInterval(() => {
+                if (ws.readyState !== WebSocket.OPEN) { clearInterval(keep); return; }
+                settle();
+            }, STATIONARY_KEEPALIVE_S * 1000);
+            return;
+        }
+
         const timer = setInterval(() => {
             if (ws.readyState !== WebSocket.OPEN) { clearInterval(timer); return; }
             const walking = isWalking(n);
@@ -319,7 +379,7 @@ async function startBot(n: number, token: string | null): Promise<void> {
 
 let shuttingDown = false;
 (async () => {
-    console.log(`cast: ${BOTS} -> ${ROOM_ID}`);
+    console.log(`cast: ${BOTS} roaming + ${STATIONARY.length} stationary = ${TOTAL} -> ${ROOM_ID}`);
     console.log(`      ramp ${RAMP_MS}ms, ${DURATION_S}s, seed ${SEED}, crowd (${CROWD_X},${CROWD_Y}) spread ${SPREAD}`);
     if (!/\/~\//.test(ROOM_ID)) {
         console.warn(`      ⚠ ROOM_ID has no /~/ segment — map-storage rooms live under /~/. Is this the room you meant?`);
@@ -332,9 +392,13 @@ let shuttingDown = false;
         void startBot(i, token);
         await new Promise((r) => setTimeout(r, RAMP_MS));
     }
+    for (let i = 0; i < STATIONARY.length; i++) {
+        void startBot(BOTS + i, token, STATIONARY[i]);
+        await new Promise((r) => setTimeout(r, RAMP_MS));
+    }
     const report = setInterval(() => {
         console.log(
-            `[${new Date().toISOString().slice(11, 19)}] connected=${stats.connected}/${BOTS} ` +
+            `[${new Date().toISOString().slice(11, 19)}] connected=${stats.connected}/${TOTAL} ` +
             `joined=${stats.joined} failed=${stats.failed} dropped=${stats.dropped} moves=${stats.movesSent}`
         );
     }, 5000);
@@ -345,7 +409,7 @@ let shuttingDown = false;
     for (const ws of sockets) { try { ws.close(); } catch { /* already closed */ } }
     await new Promise((r) => setTimeout(r, 2000));
 
-    console.log(`\ncast down: stayed=${stats.connected - stats.dropped}/${BOTS} failed=${stats.failed} dropped=${stats.dropped}`);
+    console.log(`\ncast down: stayed=${stats.connected - stats.dropped}/${TOTAL} failed=${stats.failed} dropped=${stats.dropped}`);
     console.log("Reload the room and confirm the player list is empty before the next real show.");
     process.exit(0);
 })();
