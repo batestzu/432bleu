@@ -4,14 +4,25 @@ Goal: prove (or disprove) that one show with **150 concurrent guests** survives 
 current VPS, and if not, identify *which* resource fails first so the upgrade is targeted
 instead of guesswork.
 
-## The machine under test (YABS 2026-07-06)
+## The machine under test (YABS 2026-07-06; **re-measured 2026-09-09 — the box was upgraded**)
 
 | Resource | Value | Verdict for 150 guests |
 |---|---|---|
-| CPU | 3 vCPU AMD EPYC-Rome 2.4GHz | **Suspect #2** — Owncast ffmpeg alone eats ~1 core |
-| RAM | 3.7 GiB + 2 GiB swap | **Suspect #1** — whole stack + 150 WS sessions is tight |
+| CPU | **4 vCPU** AMD EPYC-Rome (was 3) | **Suspect #1 now** — Owncast ffmpeg alone eats ~1 core, **confirmed 2026-09-09: 85–111% while the house loop transcodes** |
+| RAM | **7.6 GiB** (7751 MB) + 2 GiB swap (was 3.7 GiB) | **Largely retired** — ~4.8 GiB available with the full stack up. 847 MB of swap sits *used* but swap I/O is ~0; that is stale, not churn |
 | Disk | NVMe, 232 MB/s mixed 4k | Non-issue |
 | Network | iperf results pending | Need ≥ ~400 Mbps TX headroom (150 × 1.2 Mbps HLS ≈ 180 Mbps steady + LiveKit) |
+
+> **⚠ 2026-09-09: the specs above were re-measured, the pass criteria were NOT re-derived.**
+> `nproc`=4, `free -m` total=7751, `swapon` 2G. The CPU and RAM verdicts flipped: with 4 cores and
+> 7.6 GiB, RAM is no longer the thing most likely to fail first — **Owncast transcode is**. The T1
+> CPU budget was written as a fraction of 3 cores; it now reads out of 400%, which makes it *more*
+> conservative than intended, so a pass under it is still a real pass. Disk and network rows are
+> unchanged and still unverified (no iperf has been run).
+>
+> Measured the same day with 32 cast bots in `/~/concert.wam`: `play` 3–6% CPU, `back` 1.5–2.5%,
+> load1 0.14–0.23 with the bots alone. Load only reached 3.83 once the house loop started, and the
+> CSV attributes essentially all of it to `owncast`. **Avatar presence is cheap; transcode is not.**
 
 Predicted steady-state load at 150 guests: Owncast egress ~180 Mbps ≈ **81 GB/hour**
 (Hetzner 20 TB/mo allowance → fine, but confirm TX speed when iperf finishes).
@@ -21,7 +32,7 @@ Predicted steady-state load at 150 guests: Owncast egress ~180 Mbps ≈ **81 GB/
 | # | Test | What it isolates | Pass criteria |
 |---|---|---|---|
 | T0 | Smoke (2 bots) | Harness works against prod | 2 bots join lab room, receive moves, clean exit |
-| T1 | Presence: 150 avatar bots, 10 min | pusher/back CPU+RAM, WS fan-out | ≥95% bots connect & stay; combined `play`+`back` CPU < 200% (of 300%); no container restart |
+| T1 | Presence: 150 avatar bots, 10 min | pusher/back CPU+RAM, WS fan-out | ≥95% bots connect & stay; combined `play`+`back` CPU **< 200% (of 400% — 4 cores now)**; no container restart |
 | T2 | Stream: 150 HLS viewers, 20 min | Owncast CPU + network egress | Stall rate < 1% of segment fetches; TX ≈ 180 Mbps sustained; host load1 < 3 |
 | T3 | Proximity: LiveKit 20 pub / 40 sub, 10 min | SFU CPU, UDP relay | lk-reported packet loss < 2%; `livekit` CPU < 150% |
 | T4 | **Soak: T1+T2+T3 together, 60 min** | The real show; RAM & swap under everything | No OOM-kills (`dmesg`), swap I/O ~0 after warmup, no restarts, stall rate < 2% |
@@ -92,11 +103,11 @@ seq 150 | xargs -P 50 -I{} curl -s -o /dev/null -w "%{http_code} %{time_total}s\
 
 | Symptom in T4 | Owner | Cheapest fix |
 |---|---|---|
-| swap churn, OOM kills, containers restarting | RAM | CPX31 (4 vCPU / 8 GB, ~€2/mo more) — likely needed regardless |
+| swap churn, OOM kills, containers restarting | RAM | ~~CPX31 (4 vCPU / 8 GB)~~ **ALREADY DONE — the box is on it as of 2026-09-09.** Next step up is CPX41 |
 | Owncast CPU pegged, stalls climb with viewers | CPU (transcode) | Set Owncast to passthrough (no re-encode) and send a stream OBS already encoded at 1.2 Mbps; else CPX31 |
 | `livekit` CPU pegged, packet loss in T3 | CPU (SFU) | Lower MAX_PER_GROUP; CPX41 only if groups must be big |
 | TX plateaus below ~250 Mbps | Network | Confirm with iperf; Hetzner is normally 1 Gbps+ — check for in-VM limits |
-| back/play CPU pegged in T1 alone | WA presence | CPX31/41 — but at <200% on 3 cores WA handles 150 walkers fine in practice |
+| back/play CPU pegged in T1 alone | WA presence | CPX41 — but at <200% on **4** cores WA handles 150 walkers fine in practice |
 
 Known caveat: the WA-shipped `benchmark/` bot targets an older code layout and does not
 compile against this tree — `t1-wa-bots/` here speaks the current `/ws/room` protobuf

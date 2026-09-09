@@ -47,3 +47,7 @@ owncast-data
 letsencrypt/
 
 loadtest/results/
+# Local copies of the venue map pulled off the VPS for collision-aware bot placement.
+# The .tmj/.wam live only on the VPS and are deliberately not tracked here.
+loadtest/t1-wa-bots/*.tmj
+loadtest/t1-wa-bots/*.wam

@@ -3,7 +3,8 @@
   "private": true,
   "description": "T1: N avatar bots walking the lab map on prod — presence/websocket load",
   "scripts": {
-    "t1": "tsx bot.ts"
+    "t1": "tsx bot.ts",
+    "cast": "tsx cast.ts"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.12.1",
