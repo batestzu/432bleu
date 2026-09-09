@@ -77,14 +77,24 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 # while a cut is iterated on, and revalidation shows the new file on the next load.
 _RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 _MEDIA_CHUNK = 256 * 1024
+# media/ carries two repo markers alongside the footage. They are checked in so the
+# directory survives a clone, but this endpoint is public and the README names the
+# deploy user and server paths, so neither is served.
+_MEDIA_NOT_SERVED = {"readme.md"}
 
 
-@app.get("/media/{filename}")
+@app.api_route("/media/{filename}", methods=["GET", "HEAD"])
 def media(filename: str, request: Request):
-    """Serve one file out of the host bind-mount, honouring HTTP Range."""
+    """Serve one file out of the host bind-mount, honouring HTTP Range.
+
+    HEAD is declared explicitly: FastAPI, unlike bare starlette routing, does not
+    imply it from GET, and a media URL that 405s on HEAD breaks link previewers and
+    the occasional player that probes before fetching.
+    """
     # The path parameter cannot contain a slash, so traversal is already impossible;
     # the basename comparison keeps that true if this is ever changed to {path:path}.
-    if filename != os.path.basename(filename) or filename.startswith("."):
+    if (filename != os.path.basename(filename) or filename.startswith(".")
+            or filename.lower() in _MEDIA_NOT_SERVED):
         raise HTTPException(status_code=404)
     path = os.path.join(MEDIA_DIR, filename)
     if not os.path.isfile(path):

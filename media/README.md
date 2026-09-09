@@ -14,7 +14,12 @@ Docker build context — so these files never enter an image layer either.
 
 ## Putting a file here
 
-    scp yourfile.mp4 vspot@432bleu.com:~/workadventure/media/
+    scp yourfile.mp4 root@432bleu.com:/home/vspot/workadventure/media/
+    ssh root@432bleu.com 'chown vspot:vspot /home/vspot/workadventure/media/yourfile.mp4'
+
+`root` is used because it is the account that takes a key from the laptop; `vspot`
+does not, so an scp to it just prompts for a password. Working on the box already,
+skip all that and copy the file straight into `~/workadventure/media/`.
 
 It is live immediately at `https://boxoffice.432bleu.com/media/yourfile.mp4` — no
 rebuild, no restart, because the container reads through the bind mount. Responses
