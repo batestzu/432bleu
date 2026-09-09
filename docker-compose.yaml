@@ -628,6 +628,15 @@ services:
       OIDC_STAFF_TAGS: "${OIDC_STAFF_TAGS:-}"
       OIDC_REDIRECT_URIS: ${OIDC_REDIRECT_URIS:-https://play.432bleu.com/openid-callback}
 
+    volumes:
+      # Large binaries served at /media -- the pitch-deck video, show footage later.
+      # Read-only, and deliberately NOT part of ./boxoffice, so these files are outside
+      # this service's build context: they never enter an image layer and never enter
+      # git (see media/README.md and the media/ rules in .gitignore). Dropping a file
+      # into ~/workadventure/media on the host publishes it immediately -- the container
+      # reads through the mount, so no rebuild and no restart.
+      - ./media:/app/media:ro
+
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.boxoffice.rule=Host(`boxoffice.${BASE_DOMAIN:-432bleu.com}`)"

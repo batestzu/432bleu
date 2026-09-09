@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -53,6 +54,22 @@ async def revalidate_by_default(request: Request, call_next):
 
 
 app.mount("/static", StaticFiles(directory="/app/frontend/static"), name="static")
+
+# Large binaries -- the pitch-deck video today, show footage later -- are served from
+# a host bind-mount rather than from the image (see the boxoffice `volumes:` block in
+# docker-compose.yaml). Git history is append-only, so anything committed is permanent
+# weight for every future clone; this keeps media out of both the repo and the image
+# layers, and lets a new file go live with an scp instead of a rebuild.
+#
+# The directory is created first so a fresh clone or a run without the compose file
+# still starts: StaticFiles raises at import time if its directory is missing, which
+# would take the whole box office down over an absent video.
+MEDIA_DIR = "/app/media"
+os.makedirs(MEDIA_DIR, exist_ok=True)
+# Inherits the default Cache-Control: no-cache from the middleware above, on purpose --
+# footage gets replaced under the same filename while a cut is being iterated on, and
+# revalidation makes the new file appear on the next load instead of after a TTL.
+app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 
 @app.get("/")

@@ -51,3 +51,11 @@ loadtest/results/
 # The .tmj/.wam live only on the VPS and are deliberately not tracked here.
 loadtest/t1-wa-bots/*.tmj
 loadtest/t1-wa-bots/*.wam
+
+# Large binaries served at /media (pitch video, show footage). Bind-mounted into the
+# boxoffice container from the host, never committed: git history is append-only, so a
+# single pushed master file is permanent weight for every future clone. Keep the two
+# markers so the directory survives a fresh clone and Docker mounts a real dir.
+media/*
+!media/.gitkeep
+!media/README.md
