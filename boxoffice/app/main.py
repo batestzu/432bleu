@@ -119,6 +119,22 @@ def privacy_page():
     return FileResponse("/app/frontend/privacy.html")
 
 
+@app.get("/pitch/b043aa39")
+def pitch_deck():
+    """The investor deck, served unlisted rather than gated.
+
+    Nothing links here and the path segment is unguessable, so the only way in is a
+    link we sent. That keeps a cold send frictionless -- an investor opening this on
+    a phone should see slide one, not a login -- while X-Robots-Tag keeps it out of
+    search if the URL ever leaks into a crawlable place. Deliberately NOT added to
+    robots.txt: a Disallow would advertise the path, and we are about to buy ads, so
+    the rest of the site needs to stay indexable."""
+    return FileResponse(
+        "/app/frontend/pitch.html",
+        headers={"X-Robots-Tag": "noindex, nofollow, noarchive"},
+    )
+
+
 @app.get("/account")
 def account_page():
     return FileResponse("/app/frontend/account.html")
