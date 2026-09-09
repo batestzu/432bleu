@@ -119,7 +119,7 @@ def privacy_page():
     return FileResponse("/app/frontend/privacy.html")
 
 
-@app.get("/pitch/b043aa39")
+@app.get("/pitch/slides-4f2a")
 def pitch_deck():
     """The investor deck, served unlisted rather than gated.
 
@@ -135,7 +135,7 @@ def pitch_deck():
     )
 
 
-@app.get("/pitch/b043aa39/appendix")
+@app.get("/pitch/slides-4f2a/appendix")
 def pitch_appendix():
     """Survey data behind the deck, under the deck's own token rather than a second
     one. It goes to the same people in the same email, so a separate secret would be
