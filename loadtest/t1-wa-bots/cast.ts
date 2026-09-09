@@ -18,6 +18,7 @@
  *      CROWD_X/CROWD_Y/SPREAD — where the crowd gathers, in px
  *      STATIONARY ("18,6 22,6 19,2 13,6") — EXTRA bots that never move, at these TILE pairs.
  *        Exempt from the row band, so they may stand on the stage side. "" places none.
+ *      STATIONARY_FACE (down) — up|down|left|right, or "stage" to turn and face the stage.
  *      MIN_TILE_Y/MAX_TILE_Y (11/29) — confine the cast to these TILE rows, any column. Default is
  *        the audience floor: concert.tmj rows 9-10 are the wall under the stage, row 29 the bottom
  *        wall. Keep CROWD_Y inside the band.
@@ -98,6 +99,23 @@ function parseStationary(spec: string): [number, number][] {
     });
 }
 const STATIONARY = parseStationary(process.env.STATIONARY ?? "18,6 22,6 19,2 13,6");
+
+/**
+ * Which way the fixed bots look. They are on the stage side, so the crowd-facing default is DOWN —
+ * out toward the room and the far wall behind the audience, the way a performer stands. "stage"
+ * restores the old behaviour of turning to face the speakerMegaphone area.
+ */
+const FACINGS: Record<string, PositionMessage_Direction> = {
+    up: PositionMessage_Direction.UP,
+    down: PositionMessage_Direction.DOWN,
+    left: PositionMessage_Direction.LEFT,
+    right: PositionMessage_Direction.RIGHT,
+};
+const STATIONARY_FACE = (process.env.STATIONARY_FACE ?? "down").toLowerCase();
+if (STATIONARY_FACE !== "stage" && !(STATIONARY_FACE in FACINGS)) {
+    console.error(`STATIONARY_FACE: "${STATIONARY_FACE}" is not one of up|down|left|right|stage`);
+    process.exit(1);
+}
 const TOTAL = BOTS + STATIONARY.length;
 
 const WALK_PERIOD_S = 20, WALK_DUTY_S = 4;
@@ -212,7 +230,7 @@ if (MAP_TMJ) {
 // simply stand inside whatever is there.
 if (STATIONARY.length) {
     const where = STATIONARY.map(([x, y]) => `(${(x - TILE_W / 2) / TILE_W},${(y - TILE_H / 2) / TILE_H})`).join(" ");
-    console.log(`stationary: ${STATIONARY.length} fixed bot(s) at tiles ${where} — exempt from the row band`);
+    console.log(`stationary: ${STATIONARY.length} fixed bot(s) at tiles ${where}, facing ${STATIONARY_FACE} — exempt from the row band`);
     if (walkableSet) {
         for (const [x, y] of STATIONARY) {
             if (!walkableSet.has(`${x},${y}`)) {
@@ -306,7 +324,7 @@ async function startBot(n: number, token: string | null, fixed?: [number, number
     const name = NAMES[n % NAMES.length] + (n >= NAMES.length ? String(Math.floor(n / NAMES.length) + 1) : "");
     const textures = look(rand);
     const [ax, ay] = fixed ?? anchorFor(rand);
-    const rest = facing(ax, ay);
+    const rest = fixed && STATIONARY_FACE !== "stage" ? FACINGS[STATIONARY_FACE] : facing(ax, ay);
 
     let angle = rand() * Math.PI * 2;
     const ws = new WebSocket(wsUrl(n, name, textures, ax, ay), token ? [token] : undefined);
@@ -320,9 +338,10 @@ async function startBot(n: number, token: string | null, fixed?: [number, number
         alive = true;
 
         if (fixed) {
-            // Never walks. One settled frame so every client renders it standing and facing the
-            // stage, then the same frame on a slow keepalive — a socket that goes completely
-            // silent for the whole session is a good way to get reaped by an idle timeout.
+            // Never walks. One settled frame so every client renders it standing in the
+            // STATIONARY_FACE direction, then the same frame on a slow keepalive — a socket that
+            // goes completely silent for the whole session is a good way to get reaped by an
+            // idle timeout.
             const settle = () => {
                 if (ws.readyState !== WebSocket.OPEN) return;
                 ws.send(moveMsg(ax, ay, rest, false));
