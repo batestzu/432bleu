@@ -135,6 +135,18 @@ def pitch_deck():
     )
 
 
+@app.get("/pitch/b043aa39/appendix")
+def pitch_appendix():
+    """Survey data behind the deck, under the deck's own token rather than a second
+    one. It goes to the same people in the same email, so a separate secret would be
+    two things to keep track of protecting nothing extra -- anyone holding the deck
+    link is already meant to see the numbers under it."""
+    return FileResponse(
+        "/app/frontend/appendix.html",
+        headers={"X-Robots-Tag": "noindex, nofollow, noarchive"},
+    )
+
+
 @app.get("/account")
 def account_page():
     return FileResponse("/app/frontend/account.html")
