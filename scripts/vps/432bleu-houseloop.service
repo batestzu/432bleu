@@ -1,0 +1,27 @@
+[Unit]
+Description=432 Bleu house loop (video -> Owncast, audio -> Icecast)
+Documentation=https://claude.ai/artifact/CjRddaR9c6RQpadztz4p2W
+# Ordering only -- deliberately NOT Requires/BindsTo. The whole point of this
+# unit is that the house loop does not die when nginx is restarted or upgraded.
+After=network-online.target nginx.service docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vspot
+Group=vspot
+WorkingDirectory=/home/vspot
+ExecStart=/home/vspot/houseloop_supervisor.sh
+
+# The supervisor is a polling loop and should never exit on its own.
+Restart=always
+RestartSec=10
+
+# Stop the supervisor AND the ffmpeg legs it owns. This is the property that
+# was missing when the legs lived under nginx: there, a stop meant a SIGKILL
+# nobody expected; here it means a deliberate teardown of exactly our own tree.
+KillMode=control-group
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

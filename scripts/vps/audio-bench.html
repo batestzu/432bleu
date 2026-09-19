@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>432 Bleu — iOS Audio Bench v3</title>
+<style>
+  :root {
+    --bg:#0a1418; --panel:#10242a; --line:#1e3c43; --ink:#e6f2f1;
+    --muted:#8aa8ab; --accent:#4fd1c5; --pass:#5cc08c; --fail:#ef6b60; --warn:#e8a33d;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; background:var(--bg); color:var(--ink); }
+  body { font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         padding:16px 14px 70px; max-width:640px; margin:0 auto; }
+  h1 { font-size:1.3rem; margin:0 0 2px; }
+  .sub { color:var(--muted); font-size:0.85rem; margin:0 0 8px; }
+  .stopbar { position:sticky; top:0; z-index:5; background:var(--bg); padding:8px 0 12px; }
+  .step { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+          padding:14px; margin-bottom:14px; }
+  .hd { display:flex; align-items:center; gap:9px; margin-bottom:4px; }
+  .n { background:var(--accent); color:#05181b; font-weight:800; font-size:0.72rem;
+       width:24px; height:24px; border-radius:5px; display:grid; place-items:center; flex:none; }
+  .n.key { background:var(--warn); }
+  .ttl { font-weight:700; font-size:1.02rem; }
+  .why { color:var(--muted); font-size:0.85rem; margin:0 0 12px; }
+  button { appearance:none; background:var(--accent); color:#05181b; border:0; border-radius:9px;
+           font:700 1rem/1 -apple-system,sans-serif; padding:15px 14px; width:100%;
+           margin-bottom:8px; touch-action:manipulation; }
+  button:active { filter:brightness(0.85); }
+  button.sec { background:transparent; color:var(--accent); border:1.5px solid var(--accent); }
+  button.stop { background:var(--fail); color:#fff; }
+  button.yes { background:var(--pass); color:#05181b; }
+  button.no  { background:var(--fail); color:#fff; }
+  button:disabled { opacity:0.35; }
+  .row { display:flex; gap:8px; }
+  .ask { border-top:1px dashed var(--line); margin-top:10px; padding-top:10px; display:none; }
+  .ask.show { display:block; }
+  .ask p { font-size:0.85rem; color:var(--warn); margin:0 0 8px; font-weight:600; }
+  .verdict { font-weight:700; font-size:0.95rem; padding:10px 12px; border-radius:8px;
+             margin-top:4px; display:none; }
+  .verdict.show { display:block; }
+  .verdict.pass { background:rgba(92,192,140,.14); color:var(--pass); border:1px solid var(--pass); }
+  .verdict.fail { background:rgba(239,107,96,.14); color:var(--fail); border:1px solid var(--fail); }
+  .verdict.warn { background:rgba(232,163,61,.14); color:var(--warn); border:1px solid var(--warn); }
+  #log { background:#05161a; border:1px solid var(--line); border-radius:9px;
+         font:11.5px/1.55 ui-monospace,"SF Mono",Menlo,monospace; color:#cfe3e1;
+         padding:11px; margin-top:6px; white-space:pre-wrap; word-break:break-word;
+         max-height:260px; overflow-y:auto; }
+</style>
+</head>
+<body>
+
+<h1>iOS Audio Bench <span style="color:var(--muted);font-size:.8rem">v3</span></h1>
+<p class="sub">Ringer switch ON, volume up. <strong>Tap each button once</strong> and wait for it to respond. Hit Stop between steps.</p>
+
+<div class="stopbar"><button class="stop" onclick="stopAll()">■ STOP ALL AUDIO</button></div>
+
+<div class="step">
+  <div class="hd"><span class="n">1</span><span class="ttl">Read-back probe</span></div>
+  <p class="why">Kept for the record, but <strong>this alone proves nothing</strong> — WebKit can store the value without applying it. Step 2 is the real test.</p>
+  <button onclick="t1()">Run read-back probe</button>
+  <div class="verdict" id="v1"></div>
+</div>
+
+<div class="step">
+  <div class="hd"><span class="n key">2</span><span class="ttl">Does <code>.volume</code> actually apply?</span></div>
+  <p class="why">The decisive one. Plays the bed on a plain element with <strong>no Web Audio at all</strong>, and toggles <code>.volume</code>. Judge by ear — this is the only reliable test.</p>
+  <button onclick="t2start()">Play bed (unrouted)</button>
+  <div class="row">
+    <button class="sec" onclick="t2vol(1.0)" disabled id="b2a">volume 1.0</button>
+    <button class="sec" onclick="t2vol(0.05)" disabled id="b2b">volume 0.05</button>
+  </div>
+  <div class="row">
+    <button class="sec" onclick="t2mute(true)" disabled id="b2c">muted ON</button>
+    <button class="sec" onclick="t2mute(false)" disabled id="b2d">muted OFF</button>
+  </div>
+  <div class="ask" id="a2b">
+    <p>Does <code>muted</code> actually silence it? (decides the iOS fallback)</p>
+    <div class="row">
+      <button class="yes" onclick="ans2('T2-MUTE','muted WORKS - can ship a mute toggle')">Yes, silences</button>
+      <button class="no" onclick="ans2('T2-MUTE','muted ALSO INERT')">No, keeps playing</button>
+    </div>
+  </div>
+  <div class="ask" id="a2">
+    <p>Toggle a few times. Does the loudness change?</p>
+    <div class="row">
+      <button class="yes" onclick="ans('T2','.volume APPLIES')">Yes, it changes</button>
+      <button class="no" onclick="ans('T2','.volume IS INERT')">No, no change</button>
+    </div>
+  </div>
+  <div class="verdict" id="v2"></div>
+</div>
+
+<div class="step">
+  <div class="hd"><span class="n">3</span><span class="ttl">AudioContext resume</span></div>
+  <p class="why">Must reach <code>running</code>, or anything routed is silent.</p>
+  <button onclick="t3()">Create &amp; resume context</button>
+  <div class="verdict" id="v3"></div>
+</div>
+
+<div class="step">
+  <div class="hd"><span class="n key">4</span><span class="ttl">Gain on the bed</span></div>
+  <p class="why">Routes the bed through a GainNode. Uses a <em>fresh</em> element that is routed exactly once. Full mute vs full open, so the difference is unmistakable.</p>
+  <button onclick="t4start()">Play bed through GainNode</button>
+  <div class="row">
+    <button class="sec" onclick="t4gain(1.0)" disabled id="b4a">gain 1.0</button>
+    <button class="sec" onclick="t4gain(0.0)" disabled id="b4b">gain 0 (mute)</button>
+  </div>
+  <div class="ask" id="a4">
+    <p>Do you hear the bed, and does gain 0 silence it?</p>
+    <div class="row">
+      <button class="yes" onclick="ans('T4','GAIN WORKS on bed')">Yes — gain works</button>
+      <button class="no" onclick="ans('T4','NO AUDIO AT ALL')">I hear nothing</button>
+    </div>
+    <button class="no" onclick="ans('T4','AUDIO BUT GAIN IGNORED')">I hear it, but gain does nothing</button>
+  </div>
+  <div class="verdict" id="v4"></div>
+</div>
+
+<div class="step">
+  <div class="hd"><span class="n key">5</span><span class="ttl">Gain on a remote WebRTC track</span></div>
+  <p class="why">Gates Phase 3. Real PeerConnection loopback, soft 440&nbsp;Hz tone, no mic permission.</p>
+  <button onclick="t5start()">Start remote-track test</button>
+  <div class="row">
+    <button class="sec" onclick="t5gain(0.25)" disabled id="b5a">tone on</button>
+    <button class="sec" onclick="t5gain(0.0)" disabled id="b5b">tone off</button>
+  </div>
+  <div class="ask" id="a5">
+    <p>Do you hear a steady tone, and does "tone off" stop it?</p>
+    <div class="row">
+      <button class="yes" onclick="ans('T5','REMOTE GAIN WORKS')">Yes — tone + control</button>
+      <button class="no" onclick="ans('T5','SILENT: Safari blocks remote via WebAudio')">Silent</button>
+    </div>
+  </div>
+  <div class="verdict" id="v5"></div>
+</div>
+
+<div class="step">
+  <div class="hd"><span class="n">6</span><span class="ttl">Log</span></div>
+  <button class="sec" onclick="copyLog()">Copy log</button>
+  <div id="log" onclick="selectLog()">ready.
+</div>
+</div>
+
+<script>
+var BED="https://icecast.432bleu.com/live.mp3";
+var ctx=null;
+var plainEl=null, plainOn=false;
+var gainEl=null, gainNode=null, gainOn=false;
+var pc1=null, pc2=null, remoteGain=null, osc=null, pumpEl=null, remoteOn=false;
+
+function log(s){var e=document.getElementById("log");e.textContent+=s+"\n";e.scrollTop=e.scrollHeight;}
+function verdict(id,k,m){var v=document.getElementById(id);v.className="verdict show "+k;v.textContent=m;}
+function show(id){document.getElementById(id).classList.add("show");}
+function en(id,b){document.getElementById(id).disabled=!b;}
+function ans(t,r){log("== ANSWER "+t+": "+r+" ==");verdict("v"+t.slice(1),
+  r.indexOf("WORKS")>-1||r.indexOf("APPLIES")>-1?"pass":"fail","Recorded: "+r);}
+function selectLog(){var r=document.createRange();r.selectNodeContents(document.getElementById("log"));
+  var s=window.getSelection();s.removeAllRanges();s.addRange(r);}
+function copyLog(){var t=document.getElementById("log").textContent;
+  if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){log("[copied]");},selectLog);}else{selectLog();}}
+
+function stopAll(){
+  try{ if(plainEl){plainEl.pause();plainEl.removeAttribute("src");plainEl.load();} }catch(e){}
+  try{ if(gainEl){gainEl.pause();gainEl.removeAttribute("src");gainEl.load();} }catch(e){}
+  try{ if(pumpEl){pumpEl.pause();pumpEl.srcObject=null;} }catch(e){}
+  try{ if(osc){osc.stop();osc.disconnect();osc=null;} }catch(e){}
+  try{ if(pc1){pc1.close();pc1=null;} if(pc2){pc2.close();pc2=null;} }catch(e){}
+  plainOn=false; gainOn=false; remoteOn=false;
+  en("b2a",0);en("b2b",0);en("b2c",0);en("b2d",0);en("b4a",0);en("b4b",0);en("b5a",0);en("b5b",0);
+  log("-- stopped all --");
+}
+
+log("UA: "+navigator.userAgent);
+log("---");
+
+function t1(){
+  var a=document.createElement("audio"); a.volume=0.5; var g=a.volume;
+  var stuck=Math.abs(g-0.5)<0.01;
+  log("T1 set .volume=0.5 -> read back "+g+"  ("+(stuck?"stored":"ignored")+")");
+  verdict("v1","warn","Read back "+g+" — inconclusive by itself. Storing is not applying. Do step 2.");
+}
+
+/* 2 — plain element, NEVER routed. The decisive .volume test. */
+function t2start(){
+  if(plainOn){verdict("v2","warn","Already playing. Use the volume buttons.");return;}
+  plainOn=true;
+  plainEl=new Audio(); plainEl.src=BED; plainEl.preload="auto"; plainEl.volume=1.0;
+  plainEl.play().then(function(){
+    log("T2 unrouted element playing, volume=1.0");
+    en("b2a",1);en("b2b",1);en("b2c",1);en("b2d",1);show("a2");show("a2b");
+    verdict("v2","warn","Playing with NO Web Audio. Toggle 1.0 / 0.05 and listen.");
+  }).catch(function(e){
+    plainOn=false; log("T2 play rejected: "+e.name);
+    verdict("v2","fail","play() rejected: "+e.name+" — tap again.");
+  });
+}
+function t2vol(v){
+  if(!plainEl)return;
+  plainEl.volume=v;
+  log("T2 .volume = "+v+"  -> reads "+plainEl.volume);
+}
+function t2mute(m){
+  if(!plainEl)return;
+  plainEl.muted=m;
+  log("T2 .muted = "+m+"  -> reads "+plainEl.muted);
+}
+function ans2(t,r){ log("== ANSWER "+t+": "+r+" =="); }
+
+/* 3 — context */
+function t3(){
+  try{
+    if(!ctx){var AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC){verdict("v3","fail","No AudioContext.");return;}
+      ctx=new AC(); log("T3 created ctx state="+ctx.state+" rate="+ctx.sampleRate);}
+    ctx.resume().then(function(){
+      log("T3 after resume: "+ctx.state);
+      verdict("v3", ctx.state==="running"?"pass":"fail", "state = "+ctx.state);
+    });
+  }catch(e){log("T3 err "+e);verdict("v3","fail",String(e));}
+}
+
+/* 4 — bed through gain, fresh element routed exactly once */
+function t4start(){
+  if(!ctx){verdict("v4","warn","Run step 3 first.");return;}
+  if(gainOn){verdict("v4","warn","Already running. Use the gain buttons.");return;}
+  gainOn=true;                                   // set SYNCHRONOUSLY - double-tap safe
+  gainEl=new Audio();
+  gainEl.crossOrigin="anonymous";                // before src, or the graph is silent
+  gainEl.src=BED; gainEl.preload="auto";
+  gainEl.play().then(function(){
+    try{
+      var src=ctx.createMediaElementSource(gainEl);
+      gainNode=ctx.createGain(); gainNode.gain.value=1.0;
+      src.connect(gainNode); gainNode.connect(ctx.destination);
+      log("T4 routed ONCE: element -> gain -> destination");
+      en("b4a",1);en("b4b",1);show("a4");
+      verdict("v4","warn","Routed. Toggle gain 1.0 / 0 and listen.");
+    }catch(e){ log("T4 route error: "+e.name+" "+e.message);
+      verdict("v4","fail","routing failed: "+e.message); }
+  }).catch(function(e){
+    gainOn=false; log("T4 play rejected: "+e.name);
+    verdict("v4","fail","play() rejected: "+e.name+" — tap again.");
+  });
+}
+function t4gain(v){ if(!gainNode)return;
+  gainNode.gain.setTargetAtTime(v,ctx.currentTime,0.05); log("T4 gain -> "+v); }
+
+/* 5 — remote track via PeerConnection loopback */
+function t5start(){
+  if(!ctx){verdict("v5","warn","Run step 3 first.");return;}
+  if(remoteOn){verdict("v5","warn","Already running.");return;}
+  remoteOn=true;
+  try{
+    osc=ctx.createOscillator(); osc.frequency.value=440;
+    var tg=ctx.createGain(); tg.gain.value=0.25;
+    var dest=ctx.createMediaStreamDestination();
+    osc.connect(tg); tg.connect(dest); osc.start();
+    pc1=new RTCPeerConnection(); pc2=new RTCPeerConnection();
+    pc1.onicecandidate=function(e){if(e.candidate)pc2.addIceCandidate(e.candidate);};
+    pc2.onicecandidate=function(e){if(e.candidate)pc1.addIceCandidate(e.candidate);};
+    pc2.ontrack=function(e){
+      var rs=e.streams[0]||new MediaStream([e.track]);
+      log("T5 remote track: "+e.track.kind);
+      pumpEl=new Audio(); pumpEl.srcObject=rs; pumpEl.muted=true;
+      pumpEl.play().then(function(){log("T5 pump playing (muted)");})
+                   .catch(function(er){log("T5 pump rejected "+er.name);});
+      var rsrc=ctx.createMediaStreamSource(rs);
+      remoteGain=ctx.createGain(); remoteGain.gain.value=0.25;
+      rsrc.connect(remoteGain); remoteGain.connect(ctx.destination);
+      log("T5 routed REMOTE -> gain -> destination");
+      en("b5a",1);en("b5b",1);show("a5");
+      verdict("v5","warn","Routed. Do you hear a 440 Hz tone?");
+    };
+    pc1.addTrack(dest.stream.getAudioTracks()[0],dest.stream);
+    pc1.createOffer().then(function(o){return pc1.setLocalDescription(o).then(function(){return o;});})
+      .then(function(o){return pc2.setRemoteDescription(o);})
+      .then(function(){return pc2.createAnswer();})
+      .then(function(a){return pc2.setLocalDescription(a).then(function(){return a;});})
+      .then(function(a){return pc1.setRemoteDescription(a);})
+      .then(function(){log("T5 loopback negotiated");})
+      .catch(function(e){log("T5 negotiation error "+e);verdict("v5","fail",e.message);});
+  }catch(e){remoteOn=false;log("T5 err "+e);verdict("v5","fail",String(e));}
+}
+function t5gain(v){ if(!remoteGain)return;
+  remoteGain.gain.setTargetAtTime(v,ctx.currentTime,0.05); log("T5 remote gain -> "+v); }
+</script>
+</body>
+</html>
