@@ -9,10 +9,11 @@ import type {
 import { Track, ParticipantEvent, VideoQuality } from "livekit-client";
 import type { Readable, Unsubscriber, Writable } from "svelte/store";
 import { derived, get, writable } from "svelte/store";
-import type { SpaceUserExtended } from "../Space/SpaceInterface";
+import type { SpaceInterface, SpaceUserExtended } from "../Space/SpaceInterface";
 import type { StreamableSubjects } from "../Space/SpacePeerManager/SpacePeerManager";
 import { decrementLivekitConnectionsCount, incrementLivekitConnectionsCount } from "../Utils/E2EHooks";
 import { volumeMegaphoneStore } from "../Stores/PeerStore";
+import { volumeStoreForSpace } from "../Audio/SpaceVolume";
 import type { WebRtcStats } from "../Components/Video/WebRtcStats";
 import { videoQualityStore } from "../Stores/MediaStore";
 import { screenShareQualityStore } from "../Stores/ScreenSharingStore";
@@ -71,6 +72,7 @@ export class LiveKitParticipant {
         private _streamableSubjects: StreamableSubjects,
         private _blockedUsersStore: Readable<Set<string>>,
         private abortSignal: AbortSignal,
+        private space: SpaceInterface | undefined = undefined,
         private defaultVolume: number = get(volumeMegaphoneStore)
     ) {
         incrementLivekitConnectionsCount();
@@ -81,11 +83,16 @@ export class LiveKitParticipant {
         this._videoVolumeStore = writable(defaultVolume);
         this._screenShareVolumeStore = writable(defaultVolume);
 
-        // The Settings slider writes volumeMegaphoneStore, but the get() in the parameter
+        // The Settings slider writes the volume stores, but the get() in the parameter
         // default above is a ONE-SHOT read taken at construction. Without this subscription
         // a mid-show slider move reached nobody already on stage -- only participants
         // constructed afterwards -- which reads as "the slider does nothing".
-        this.volumeMegaphoneUnsubscribe = volumeMegaphoneStore.subscribe((volume) => {
+        //
+        // WHICH slider applies is keyed on the space, not on this being LiveKit. The
+        // back chooses the transport by user count, so LiveKit does not imply megaphone:
+        // in a large room it can carry proximity chat, which used to end up governed by
+        // the megaphone slider.
+        this.volumeMegaphoneUnsubscribe = volumeStoreForSpace(space).subscribe((volume) => {
             this._videoVolumeStore.set(volume);
             this._screenShareVolumeStore.set(volume);
         });

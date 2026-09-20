@@ -680,7 +680,8 @@ export class LiveKitRoom implements LiveKitRoomInterface {
                 spaceUser,
                 this._streamableSubjects,
                 this._blockedUsersStore,
-                this.abortSignal
+                this.abortSignal,
+                this.space
             )
         );
     }

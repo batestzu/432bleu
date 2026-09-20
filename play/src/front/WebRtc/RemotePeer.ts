@@ -15,6 +15,7 @@ import type { SpaceInterface } from "../Space/SpaceInterface";
 import { decrementWebRtcConnectionsCount, incrementWebRtcConnectionsCount } from "../Utils/E2EHooks";
 import { deriveSwitchStore } from "../Stores/InterruptorStore";
 import { volumeProximityDiscussionStore } from "../Stores/PeerStore";
+import { volumeStoreForSpace } from "../Audio/SpaceVolume";
 import { screenShareQualityStore } from "../Stores/ScreenSharingStore";
 import { bandwidthConstrainedPreferenceStore } from "../Stores/BandwidthConstrainedPreferenceStore";
 import type { WebRtcStats } from "../Components/Video/WebRtcStats";
@@ -67,6 +68,7 @@ export class RemotePeer extends Peer implements Streamable {
     private readonly _isBlocked: Readable<boolean>;
     private closeStreamableTimeout: ReturnType<typeof setTimeout> | undefined;
     public readonly volume: Writable<number>;
+    private readonly volumeUnsubscribe: Unsubscriber;
     public readonly videoType: StreamCategory;
     public readonly webrtcStats: Readable<WebRtcStats | undefined>;
     private receiverMaxBitrateBps: number | undefined;
@@ -268,6 +270,19 @@ export class RemotePeer extends Peer implements Streamable {
         super(peerConfig);
 
         this.volume = writable(defaultVolume);
+
+        // defaultVolume above is a ONE-SHOT get() taken at construction, so a
+        // mid-show slider move reached nobody already connected -- which reads
+        // as "the slider does nothing". Same defect that was fixed for LiveKit
+        // in c73ca23; this is the WebRTC half.
+        //
+        // Which slider applies is keyed on the SPACE this peer belongs to, not
+        // on the transport carrying it. The back chooses the transport by user
+        // count, so a small room falls back to WebRTC and its megaphone audio
+        // arrives here -- where it used to be governed by the proximity slider.
+        this.volumeUnsubscribe = volumeStoreForSpace(space).subscribe((volume) => {
+            this.volume.set(volume);
+        });
         this._hasAudio = writable<boolean>(true);
         this.videoType = type;
         this.displayMode = type === "video" ? "cover" : "fit";
@@ -571,6 +586,7 @@ export class RemotePeer extends Peer implements Streamable {
      */
     public destroy(error?: Error): void {
         try {
+            this.volumeUnsubscribe();
             // Explicitly stop tracks and clear the store to send a clear "off" signal
             const remoteStream = get(this._remoteStreamStore);
             if (remoteStream) {

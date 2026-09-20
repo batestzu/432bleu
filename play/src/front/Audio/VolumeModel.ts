@@ -94,6 +94,39 @@ export function effectiveVolume(inputs: VolumeInputs, mode: ZoneVolumeMode = ZON
 }
 
 /**
+ * Whether volume can keep going through the media element, or has to be routed
+ * through a GainNode.
+ *
+ * The test is whether an output device can be chosen, because that is the only
+ * thing the element path buys that the gain path cannot do: routing through the
+ * graph silently disables setSinkId, and AudioContext.setSinkId() does not
+ * exist in Firefox. Where setSinkId is absent -- iOS Safari and Android Chrome
+ * -- there is nothing to protect, and iOS additionally needs gain because it
+ * ignores writes to .volume.
+ *
+ * NOT tested by writing .volume and reading it back: iOS returns the value it
+ * was given while changing nothing, so that probe reports success on exactly
+ * the platform that is broken.
+ */
+export function canKeepElementVolumePath(element: Pick<HTMLAudioElement, "setSinkId">): boolean {
+    return typeof element.setSinkId === "function";
+}
+
+/**
+ * Whether a stream's space is the megaphone space.
+ *
+ * Compared by identity: the megaphone space store holds the very object the
+ * peer was constructed with. Names are not reliable -- the megaphone space name
+ * is derived from the WAM's megaphone title, which the map editor can change.
+ *
+ * Two undefineds must NOT compare equal, or a peer with no space would be
+ * treated as the megaphone whenever there is no megaphone space.
+ */
+export function isMegaphoneSpace<T>(space: T | undefined, megaphoneSpace: T | undefined): boolean {
+    return space !== undefined && megaphoneSpace !== undefined && space === megaphoneSpace;
+}
+
+/**
  * Whether zone audio should currently duck. Derived, so it cannot drift out of
  * step with the talking state the way a stored `volumeReduced` flag did.
  */

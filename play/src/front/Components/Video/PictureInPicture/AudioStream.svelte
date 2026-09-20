@@ -5,6 +5,7 @@
     import Debug from "debug";
     import * as Sentry from "@sentry/svelte";
     import type { Readable } from "svelte/store";
+    import { attachVolume, type VolumeHandle } from "../../../Audio/VolumeChain";
 
     export let streamStore: Readable<MediaStream | undefined>;
     export let outputDeviceId: string | undefined = undefined;
@@ -18,10 +19,23 @@
 
     export let volume: Readable<number>;
     let audioElement: HTMLAudioElement;
+    let volumeHandle: VolumeHandle | undefined;
+
+    // Writing audioElement.volume directly is inert on iOS, so the level goes
+    // through a chain that falls back to a GainNode where that is the case.
+    // See ../../../Audio/VolumeChain.ts for why the path is chosen the way it is.
+    function ensureVolumeHandle() {
+        if (!audioElement || volumeHandle || destroyed) {
+            return;
+        }
+        volumeHandle = attachVolume({ element: audioElement, stream }, $volume);
+        debug("Volume path", volumeHandle.usesGain ? "gain" : "element");
+    }
 
     $: {
-        if (audioElement) {
-            audioElement.volume = $volume;
+        if (audioElement && !destroyed) {
+            ensureVolumeHandle();
+            volumeHandle?.setLevel($volume);
         }
     }
 
@@ -84,6 +98,9 @@
     $: if (audioElement && stream) {
         if (audioElement.srcObject !== stream) {
             audioElement.srcObject = stream;
+            // The gain path holds a source node built from the stream, so it has
+            // to be rebuilt when the stream is replaced.
+            volumeHandle?.setStream(stream);
         }
     }
 
@@ -96,7 +113,9 @@
                     return;
                 }
                 audioElement.srcObject = stream ?? null;
-                audioElement.volume = $volume;
+                ensureVolumeHandle();
+                volumeHandle?.setStream(stream);
+                volumeHandle?.setLevel($volume);
             }
         })().catch((e) => {
             console.error(e);
@@ -106,6 +125,8 @@
 
     onDestroy(() => {
         destroyed = true;
+        volumeHandle?.detach();
+        volumeHandle = undefined;
     });
 </script>
 
