@@ -5,6 +5,7 @@
     import type { Subscription } from "rxjs";
     import type { AudioManagerVolume } from "../../Stores/AudioManagerStore";
     import {
+        audioManagerEffectiveVolumeStore,
         audioManagerPlayerState,
         audioManagerRetryPlaySubject,
         audioManagerFileStore,
@@ -21,6 +22,7 @@
     let HTMLAudioPlayer: HTMLAudioElement;
     let unsubscriberFileStore: Unsubscriber | null = null;
     let unsubscriberVolumeStore: Unsubscriber | null = null;
+    let unsubscriberEffectiveVolume: Unsubscriber | null = null;
     let retryPlayStoreSubscription: Subscription | null = null;
 
     /**
@@ -39,9 +41,8 @@
     }
 
     onMount(() => {
-        let volume = Math.min(localUserStore.getAudioPlayerVolume(), get(audioManagerVolumeStore).volume);
-        audioManagerVolumeStore.setVolume(volume);
-        audioManagerVolumeStore.setMuted(localUserStore.getAudioPlayerMuted());
+        // The store seeds itself from localStorage. Re-applying it here with a
+        // Math.min against the live value is what used to ratchet the level down.
 
         unsubscriberFileStore = audioManagerFileStore.subscribe((src: string) => {
             (async () => {
@@ -54,21 +55,28 @@
                 HTMLAudioPlayer.src = src;
                 HTMLAudioPlayer.load();
                 HTMLAudioPlayer.loop = get(audioManagerVolumeStore).loop;
-                HTMLAudioPlayer.volume = get(audioManagerVolumeStore).volume;
+                HTMLAudioPlayer.volume = get(audioManagerEffectiveVolumeStore);
                 HTMLAudioPlayer.muted = get(audioManagerVolumeStore).muted;
                 tryPlay();
             })().catch(console.error);
         });
-        unsubscriberVolumeStore = audioManagerVolumeStore.subscribe((audioManager: AudioManagerVolume) => {
-            const reduceVolume = audioManager.talking && audioManager.decreaseWhileTalking;
-            if (reduceVolume && !audioManager.volumeReduced) {
-                audioManager.volume *= 0.5;
-            } else if (!reduceVolume && audioManager.volumeReduced) {
-                audioManager.volume *= 2.0;
-            }
-            audioManager.volumeReduced = reduceVolume;
+        // The level is read from the derived store; nothing here modifies it.
+        // This subscriber used to multiply the shared volume by 0.5 and 2.0 in
+        // place, which desynced permanently if the slider moved while ducked.
+        unsubscriberEffectiveVolume = audioManagerEffectiveVolumeStore.subscribe((level: number) => {
             if (HTMLAudioPlayer) {
-                HTMLAudioPlayer.volume = audioManager.volume;
+                HTMLAudioPlayer.volume = level;
+            }
+        });
+
+        unsubscriberVolumeStore = audioManagerVolumeStore.subscribe((audioManager: AudioManagerVolume) => {
+            if (HTMLAudioPlayer) {
+                // Mute is carried by the element's own muted property, not by a
+                // level of zero. The two are not interchangeable: iOS ignores
+                // writes to .volume but still honours .muted, so this is the
+                // only mute that works on a phone. The derived level goes to
+                // zero as well, which costs nothing and covers the case where
+                // the element is swapped underneath us.
                 HTMLAudioPlayer.muted = audioManager.muted;
                 HTMLAudioPlayer.loop = audioManager.loop;
                 // Use paused attribute to manage audio
@@ -79,7 +87,9 @@
                     // Paused is resumable, so keep the source loaded.
                     HTMLAudioPlayer.pause();
                 } else {
-                    HTMLAudioPlayer.muted = false;
+                    // This used to force muted = false on every store change,
+                    // two lines after setting it from the store, so the mute
+                    // button never silenced zone audio at all.
                     HTMLAudioPlayer.play().catch(console.error);
                 }
             }
@@ -98,6 +108,9 @@
         }
         if (unsubscriberVolumeStore) {
             unsubscriberVolumeStore();
+        }
+        if (unsubscriberEffectiveVolume) {
+            unsubscriberEffectiveVolume();
         }
         retryPlayStoreSubscription?.unsubscribe();
         audioManagerPlayerState.set(undefined);

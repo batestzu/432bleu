@@ -4,7 +4,6 @@
     import type { Unsubscriber } from "svelte/store";
     import { get } from "svelte/store";
     import { onDestroy, onMount } from "svelte";
-    import type { AudioManagerVolume } from "../../Stores/AudioManagerStore";
     import { audioManagerVolumeStore } from "../../Stores/AudioManagerStore";
     import { localUserStore } from "../../Connection/LocalUserStore";
     import LL from "../../../i18n/i18n-svelte";
@@ -16,18 +15,11 @@
     let currentVolume: number = localUserStore.getAudioPlayerVolume();
 
     onMount(() => {
-        let volume = Math.min(localUserStore.getAudioPlayerVolume(), get(audioManagerVolumeStore).volume);
-        audioManagerVolumeStore.setVolume(volume);
-        audioManagerVolumeStore.setMuted(localUserStore.getAudioPlayerMuted());
-
-        unsubscriberVolumeStore = audioManagerVolumeStore.subscribe((audioManager: AudioManagerVolume) => {
-            const reduceVolume = audioManager.talking && audioManager.decreaseWhileTalking;
-            if (reduceVolume && !audioManager.volumeReduced) {
-                audioManager.volume *= 0.5;
-            } else if (!reduceVolume && audioManager.volumeReduced) {
-                audioManager.volume *= 2.0;
-            }
-            audioManager.volumeReduced = reduceVolume;
+        // The store seeds itself from localStorage, and this subscriber only
+        // reads. It used to multiply the shared volume in place -- a second copy
+        // of the same duck mutation that lived in AudioPlayer, running on the
+        // same object, with the outcome depending on which subscriber ran first.
+        unsubscriberVolumeStore = audioManagerVolumeStore.subscribe(() => {
             updateVolumeUI();
         });
     });
@@ -40,12 +32,18 @@
 
     function updateVolumeUI() {
         const audioManager = get(audioManagerVolumeStore);
+        if (!audioPlayerVolumeIcon || !audioPlayerVol) {
+            return;
+        }
         if (audioManager.muted) {
             audioPlayerVolumeIcon.classList.add("muted");
             audioPlayerVol.value = "0";
             currentVolume = 0;
         } else {
-            let volume = audioManager.volume;
+            // The slider shows what the USER set, not the level after the area
+            // and the duck are applied -- otherwise it jumps around on its own
+            // as you walk into a zone or someone starts talking.
+            let volume = audioManager.userVolume;
             currentVolume = volume;
             audioPlayerVol.value = "" + volume;
             audioPlayerVolumeIcon.classList.remove("muted");
@@ -71,7 +69,7 @@
 
     function setVolume() {
         let volume = parseFloat(audioPlayerVol.value);
-        audioManagerVolumeStore.setVolume(volume);
+        audioManagerVolumeStore.setUserVolume(volume);
         localUserStore.setAudioPlayerVolume(volume);
         audioManagerVolumeStore.setMuted(false);
         localUserStore.setAudioPlayerMuted(false);
