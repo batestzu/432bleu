@@ -48,6 +48,7 @@ import {
     MAP_EDITOR_ALLOWED_USERS,
     OPID_WOKA_NAME_POLICY,
     PUBLIC_MAP_STORAGE_URL,
+    SINGLE_ROOM,
     START_ROOM_URL,
     YOUTUBE_ENABLED,
     MATRIX_PUBLIC_URI,
@@ -58,6 +59,7 @@ import {
 } from "../enums/EnvironmentVariable";
 import type { AdminBannedData, FetchMemberDataByUuidResponse } from "./AdminApi";
 import type { AdminInterface } from "./AdminInterface";
+import { singleRoomRedirect } from "./SingleRoom";
 import { localWokaService } from "./LocalWokaService";
 import { MetaTagsDefaultValue } from "./MetaTagsBuilder";
 import { localCompanionService } from "./LocalCompanionSevice";
@@ -260,6 +262,13 @@ class LocalAdmin implements AdminInterface {
         locale?: string
     ): Promise<MapDetailsData | RoomRedirect | ErrorApiData> {
         const roomUrl = new URL(playUri);
+
+        if (SINGLE_ROOM) {
+            const redirectUrl = singleRoomRedirect(playUri, START_ROOM_URL);
+            if (redirectUrl) {
+                return Promise.resolve({ redirectUrl });
+            }
+        }
 
         if (roomUrl.pathname === "/") {
             roomUrl.pathname = START_ROOM_URL;

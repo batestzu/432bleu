@@ -108,6 +108,8 @@ export const ENABLE_OPENAPI_ENDPOINT = env.ENABLE_OPENAPI_ENDPOINT;
 
 // The URL to use if the user is visiting the first time and hitting the "/" route.
 export const START_ROOM_URL: string = env.START_ROOM_URL || "/_/global/maps.workadventu.re/starter/map.json";
+// If true, every room URL is redirected to START_ROOM_URL (see services/SingleRoom.ts).
+export const SINGLE_ROOM: boolean = env.SINGLE_ROOM;
 export const FALLBACK_LOCALE: string | undefined = env.FALLBACK_LOCALE;
 
 // Logrocket id

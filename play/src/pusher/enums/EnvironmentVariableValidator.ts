@@ -274,6 +274,11 @@ export const EnvironmentVariables = z.object({
         .transform((val) => toBool(val, false))
         .describe("Enable/disable the OpenAPI documentation endpoint. Defaults to false"),
     START_ROOM_URL: z.string().optional().describe("Default room URL where users start when accessing the platform"),
+    SINGLE_ROOM: BoolAsString.optional()
+        .transform((val) => toBool(val, false))
+        .describe(
+            "Redirect every room URL to START_ROOM_URL so all visitors share one room. Only applies without an admin API. Defaults to false"
+        ),
 
     // Front related environment variables
     DEBUG_MODE: BoolAsString.optional()

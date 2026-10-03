@@ -95,6 +95,8 @@ services:
       REDIS_HOST: redis
       ENABLE_OPENAPI_ENDPOINT: "true"
       START_ROOM_URL: "$START_ROOM_URL"
+      # One venue: every room URL redirects to START_ROOM_URL, so nobody lands in a copy.
+      SINGLE_ROOM: "${SINGLE_ROOM:-true}"
       ENABLE_CHAT: "$ENABLE_CHAT"
       ENABLE_CHAT_UPLOAD: "$ENABLE_CHAT_UPLOAD"
       ENABLE_CHAT_ONLINE_LIST: "$ENABLE_CHAT_ONLINE_LIST"
