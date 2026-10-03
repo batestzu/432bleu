@@ -8,6 +8,7 @@ Usage:
   python manage.py set-times <event-id> <show HH:MM> [doors HH:MM]
   python manage.py list-events
   python manage.py sales <event-id>
+  python manage.py entries <event-id>
   python manage.py deactivate <event-id>
   python manage.py mark-sold-out <event-id>
   python manage.py set-capacity <event-id> <tier-name> <capacity|none>
@@ -32,7 +33,8 @@ from datetime import datetime, timedelta, timezone
 os.environ.setdefault("DATABASE_URL", "postgresql://boxoffice:boxoffice@localhost:5433/boxoffice")
 
 from app.database import engine, SessionLocal, Base
-from app.models import Event, TicketTier, Ticket, MembershipTier, Membership, SurveyResponse
+from app.models import Event, TicketTier, Ticket, MembershipTier, Membership, SurveyResponse, GateEntry
+from app.venue_time import VENUE_TZ
 from app.code_gen import generate_code
 from app.email_client import send_ticket_email, send_membership_email
 from sqlalchemy import func
@@ -116,6 +118,70 @@ def sales_report(event_id):
             total += revenue
         print("  " + "─" * 48)
         print(f"  {'Total revenue':<20}              ${total/100:>8.2f}\n")
+    finally:
+        db.close()
+
+
+def _device(user_agent):
+    """A short device label from a User-Agent, for telling an iPhone from a laptop."""
+    ua = user_agent or ""
+    os_name = next((n for k, n in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"),
+                                   ("Mac OS X", "Mac"), ("Windows", "Windows"), ("Linux", "Linux"))
+                    if k in ua), "?")
+    browser = next((n for k, n in (("Firefox", "Firefox"), ("FxiOS", "Firefox"), ("EdgA", "Edge"),
+                                   ("Edg/", "Edge"), ("CriOS", "Chrome"), ("Chrome", "Chrome"),
+                                   ("Safari", "Safari")) if k in ua), "?")
+    return f"{os_name} {browser}"
+
+
+def _venue_clock(utc_naive):
+    return utc_naive.replace(tzinfo=timezone.utc).astimezone(VENUE_TZ).strftime("%m-%d %H:%M:%S")
+
+
+def entries_report(event_id):
+    """Who came through the ticket gate for one event (see models.GateEntry).
+    Ticket holders are matched by the event on their ticket; members by entering
+    between three hours before the show and the gate's own four-hour cutoff after it."""
+    db = SessionLocal()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            print("Event not found.")
+            return
+        print(f"\n  {event.name}  —  {event.date.strftime('%Y-%m-%d %H:%M')} (venue time)")
+        print("  " + "─" * 72)
+
+        def show(label, who, rows):
+            if rows:
+                first, last = rows[0], rows[-1]
+                print(f"  {label:<10} {who:<24} in {_venue_clock(first.created_at)}"
+                      f"  last {_venue_clock(last.created_at)}  loads {len(rows):<3} {_device(first.user_agent)}")
+            else:
+                print(f"  {label:<10} {who:<24} never came through the gate")
+
+        tickets = db.query(Ticket).filter(Ticket.event_id == event_id).order_by(Ticket.created_at).all()
+        came = 0
+        for t in tickets:
+            rows = (db.query(GateEntry).filter(GateEntry.code == t.code)
+                    .order_by(GateEntry.created_at).all())
+            came += bool(rows)
+            show(t.tier.name, f"{t.code} {t.name or t.email}"[:24], rows)
+
+        start = event.date.replace(tzinfo=VENUE_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+        window = (start - timedelta(hours=3), start + timedelta(hours=4))
+        member_rows = (db.query(GateEntry)
+                       .filter(GateEntry.kind == "membership",
+                               GateEntry.created_at >= window[0], GateEntry.created_at < window[1])
+                       .order_by(GateEntry.created_at).all())
+        by_code = {}
+        for r in member_rows:
+            by_code.setdefault(r.code, []).append(r)
+        for code, rows in by_code.items():
+            m = db.query(Membership).filter(Membership.code == code).first()
+            show("member", f"{code} {(m.name or m.email) if m else ''}"[:24], rows)
+
+        print("  " + "─" * 72)
+        print(f"  {came} of {len(tickets)} ticket holders came in, plus {len(by_code)} member(s)\n")
     finally:
         db.close()
 
@@ -579,6 +645,11 @@ if __name__ == "__main__":
             print("Usage: python manage.py sales <event-id>")
         else:
             sales_report(int(sys.argv[2]))
+    elif cmd == "entries":
+        if len(sys.argv) < 3:
+            print("Usage: python manage.py entries <event-id>")
+        else:
+            entries_report(int(sys.argv[2]))
     elif cmd == "deactivate":
         if len(sys.argv) < 3:
             print("Usage: python manage.py deactivate <event-id>")

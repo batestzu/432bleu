@@ -90,6 +90,21 @@ class Ticket(Base):
     tier = relationship("TicketTier", back_populates="tickets")
 
 
+class GateEntry(Base):
+    """One row per page load the ticket gate let through (routes/gate.py). Before this a
+    ticket holder's arrival was recorded nowhere: `tickets.used_at` belongs to the door
+    scanner, which refuses a ticket once it is set, so "did they show up?" meant lining up
+    back logs with gate 200s by timestamp. `manage.py entries <event-id>` reads it back."""
+    __tablename__ = "gate_entries"
+    id = Column(Integer, primary_key=True)
+    code = Column(String, nullable=False, index=True)
+    kind = Column(String, nullable=False)  # "ticket" or "membership"
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True, index=True)  # tickets only
+    path = Column(String, default="")  # page they opened, query dropped: it can carry a login JWT
+    user_agent = Column(String, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class LoginToken(Base):
     __tablename__ = "login_tokens"
     id = Column(Integer, primary_key=True)

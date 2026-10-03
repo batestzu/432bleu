@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 import os
 import re
@@ -17,6 +18,22 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
 
+
+class _RedactTokens(logging.Filter):
+    """Uvicorn's access log prints full request paths, and two of ours carry live
+    credentials in the query string: the magic link (/api/auth/verify?token=) and gate
+    checks, which inherit ?token=<WorkAdventure login JWT> from the page Caddy is asking
+    about. Mask the value and keep the line."""
+    _TOKEN = re.compile(r"(token=)[^&\s]+")
+
+    def filter(self, record):
+        if isinstance(record.args, tuple) and len(record.args) == 5:
+            client, method, path, version, status = record.args
+            record.args = (client, method, self._TOKEN.sub(r"\1REDACTED", str(path)), version, status)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_RedactTokens())
 
 app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter

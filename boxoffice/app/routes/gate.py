@@ -1,34 +1,62 @@
+import logging
 import os
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..limiter import limiter
-from ..models import Ticket, Membership
+from ..models import Ticket, Membership, GateEntry
 from ..cookies import COOKIE_NAME, set_pass_cookie
 from ..venue_time import VENUE_TZ  # event dates are naive, in venue-local time
 
 router = APIRouter()
+logger = logging.getLogger("boxoffice")
 BOXOFFICE_DOMAIN = os.getenv("BOXOFFICE_DOMAIN", "https://432bleu.com")
 
 TICKET_VALID_HOURS_AFTER_EVENT = 4
 MEMBERSHIP_ACTIVE_STATUSES = {"active", "trialing", "past_due"}
 
 
-def _code_grants_access(db: Session, code: str) -> bool:
+def _access_grant(db: Session, code: str):
+    """The Ticket or Membership that `code` currently admits, or None."""
     ticket = db.query(Ticket).filter(Ticket.code == code).first()
     if ticket:
         event_start = ticket.tier.event.date.replace(tzinfo=VENUE_TZ)
         expires_at = event_start + timedelta(hours=TICKET_VALID_HOURS_AFTER_EVENT)
-        return datetime.now(timezone.utc) < expires_at
+        return ticket if datetime.now(timezone.utc) < expires_at else None
 
     membership = db.query(Membership).filter(Membership.code == code).first()
-    if membership:
-        return membership.status in MEMBERSHIP_ACTIVE_STATUSES
+    if membership and membership.status in MEMBERSHIP_ACTIVE_STATUSES:
+        return membership
 
-    return False
+    return None
+
+
+def _code_grants_access(db: Session, code: str) -> bool:
+    return _access_grant(db, code) is not None
+
+
+def _record_entry(db: Session, request: Request, code: str, grant) -> None:
+    """Log who the gate let in. Best-effort: a failed write must never turn a valid
+    ticket away at the door, so errors are logged and swallowed. Caddy's forward_auth
+    passes the visitor's own headers through, plus the page they asked for in
+    X-Forwarded-Uri."""
+    try:
+        is_ticket = isinstance(grant, Ticket)
+        db.add(GateEntry(
+            code=code,
+            kind="ticket" if is_ticket else "membership",
+            event_id=grant.event_id if is_ticket else None,
+            path=urlsplit(request.headers.get("x-forwarded-uri", "")).path[:500],
+            user_agent=request.headers.get("user-agent", "")[:300],
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Gate let %s in but could not record the entry", code)
 
 
 def find_access_code(db: Session, email: str):
@@ -62,9 +90,11 @@ def find_access_code(db: Session, email: str):
 @router.get("/gate/check")
 def gate_check(request: Request, db: Session = Depends(get_db)):
     code = request.cookies.get(COOKIE_NAME, "").upper().strip()
-    if code and _code_grants_access(db, code):
-        return Response(status_code=200)
-    return RedirectResponse(f"{BOXOFFICE_DOMAIN}/enter", status_code=302)
+    grant = _access_grant(db, code) if code else None
+    if grant is None:
+        return RedirectResponse(f"{BOXOFFICE_DOMAIN}/enter", status_code=302)
+    _record_entry(db, request, code, grant)
+    return Response(status_code=200)
 
 
 class EnterRequest(BaseModel):
