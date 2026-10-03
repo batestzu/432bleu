@@ -39,7 +39,7 @@ function TicketDrawer({ show, accent, onClose }) {
     : selectedTier.priceCents;
   const canSubmit = !!selectedTier && name.trim() !== '' && email.includes('@') && !submitting
     && !(isPwyc && amountCents < 200);
-  const canSubmitCrypto = canSubmit && selectedTier && selectedTier.name !== 'GA' && !cryptoSubmitting;
+  const canSubmitCrypto = canSubmit && selectedTier && !(amountCents === 0 && !isPwyc) && !cryptoSubmitting;
   const allSoldOut = !!show && show.tiers.length > 0 && show.tiers.every(t => !t.available);
   const nameInvalid = attempted && name.trim() === '';
   const emailInvalid = attempted && !email.includes('@');
@@ -295,7 +295,7 @@ function Footer({ accent, tier, amountCents, canSubmit, submitting, error, onCon
     : isPwyc && amountCents < 200 ? 'ENTER AN AMOUNT'
     : amountCents === 0 ? 'CLAIM FREE TICKET'
     : 'SECURE TICKETS';
-  const showCryptoBtn = !!tier && tier.name !== 'GA';
+  const showCryptoBtn = !!tier && !(amountCents === 0 && !isPwyc);
   const cryptoBtnLabel = cryptoSubmitting ? 'REDIRECTING…' : 'PAY WITH CRYPTO';
 
   return (

@@ -446,6 +446,12 @@
       setFieldInvalid('email', !email || !email.includes('@'));
     }
 
+    // Free means $0 and not PWYC (PWYC stores 0 but floors at $2). Never decide by
+    // tier name: a GA priced above $0 must go to checkout, not the free-claim route.
+    function isFreeTier(tier) {
+      return tier.price_cents === 0 && tier.name !== 'PWYC';
+    }
+
     function selectTier(tierId) {
       selectedTier = eventData.tiers.find(t => t.id === tierId);
       document.querySelectorAll('.tier-card').forEach(el => el.classList.remove('selected'));
@@ -456,7 +462,7 @@
         pwycInput.classList.toggle('visible', selectedTier.name === 'PWYC');
       }
       document.getElementById('crypto-btn').style.display =
-        selectedTier.name === 'GA' ? 'none' : 'block';
+        isFreeTier(selectedTier) ? 'none' : 'block';
       updateBtn();
     }
 
@@ -501,8 +507,8 @@
       btn.textContent = 'PROCESSING…';
 
       try {
-        if (selectedTier.name === 'GA') {
-          await claimFree('GA');
+        if (isFreeTier(selectedTier)) {
+          await claimFree(selectedTier.name);
         } else if (selectedTier.name === 'PWYC') {
           const amount = parseFloat(document.getElementById('pwyc-amount').value) || 0;
           await startCheckout(Math.round(amount * 100));
