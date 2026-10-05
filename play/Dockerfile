@@ -1,6 +1,6 @@
 
 # protobuf build
-FROM --platform=$BUILDPLATFORM node:20.18-bullseye-slim AS proto-builder
+FROM --platform=$BUILDPLATFORM node:20.18-bookworm-slim AS proto-builder
 WORKDIR /usr/src
 COPY messages/package-lock.json messages/package.json ./
 RUN npm ci
@@ -9,7 +9,7 @@ COPY libs ./../libs
 RUN npm run tag-version && npm run ts-proto
 
 # typescript build
-FROM --platform=$BUILDPLATFORM node:20.18-bullseye-slim AS builder
+FROM --platform=$BUILDPLATFORM node:20.18-bookworm-slim AS builder
 ARG NODE_OPTIONS="--max-old-space-size=4096"
 # Production sourcemaps are what made this build OOM: vite.config.mts:34 turns
 # them on unless GENERATE_SOURCEMAP=false, and emitting them for the ~3400-module
@@ -42,7 +42,7 @@ RUN export NODE_OPTIONS="$NODE_OPTIONS" && \
     npm run build
 
 # final production image
-FROM node:20.18-bullseye-slim
+FROM node:20.18-bookworm-slim
 EXPOSE 3000
 WORKDIR /usr/src
 RUN apt-get update && apt-get install -y git curl
