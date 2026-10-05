@@ -97,19 +97,49 @@ export function effectiveVolume(inputs: VolumeInputs, mode: ZoneVolumeMode = ZON
  * Whether volume can keep going through the media element, or has to be routed
  * through a GainNode.
  *
- * The test is whether an output device can be chosen, because that is the only
- * thing the element path buys that the gain path cannot do: routing through the
- * graph silently disables setSinkId, and AudioContext.setSinkId() does not
- * exist in Firefox. Where setSinkId is absent -- iOS Safari and Android Chrome
- * -- there is nothing to protect, and iOS additionally needs gain because it
- * ignores writes to .volume.
+ * A platform that ignores writes to .volume always takes gain, whatever else it
+ * offers. That is iOS, and it is passed in rather than inferred: iOS was assumed
+ * to lack setSinkId, but the in-room diagnostic on 2026-10-05 (iPhone, iOS 26.6)
+ * found setSinkId present, so the test below sent iPhones down the inert element
+ * path and left every slider dead.
+ *
+ * Elsewhere the test is whether an output device can be chosen, because that is
+ * the only thing the element path buys that the gain path cannot do: routing
+ * through the graph silently disables setSinkId, and AudioContext.setSinkId()
+ * does not exist in Firefox. Where setSinkId is absent -- Android Chrome --
+ * there is nothing to protect.
  *
  * NOT tested by writing .volume and reading it back: iOS returns the value it
  * was given while changing nothing, so that probe reports success on exactly
  * the platform that is broken.
  */
-export function canKeepElementVolumePath(element: Pick<HTMLAudioElement, "setSinkId">): boolean {
+export function canKeepElementVolumePath(
+    element: Pick<HTMLAudioElement, "setSinkId">,
+    ignoresElementVolume: boolean
+): boolean {
+    if (ignoresElementVolume) {
+        return false;
+    }
     return typeof element.setSinkId === "function";
+}
+
+/**
+ * Whether, on the gain path, the element itself is muted.
+ *
+ * The graph only makes sound while its AudioContext is running. iOS creates the
+ * context suspended until a tap, can drop it to "interrupted" (a phone call,
+ * Siri), and Chrome does the same before the page has had a click. Muting the
+ * element then would turn "the slider does nothing" into "nobody can be heard",
+ * so the element carries the sound until the context runs and hands over to the
+ * gain then. Never both at once: a suspended graph outputs nothing, so there is
+ * no doubled audio.
+ *
+ * A level of zero mutes the element regardless. .muted is the one control iOS
+ * honours on an element, so muting someone works there even before the context
+ * runs.
+ */
+export function gainPathMutesElement(contextState: string, level: number): boolean {
+    return contextState === "running" || level <= 0;
 }
 
 /**

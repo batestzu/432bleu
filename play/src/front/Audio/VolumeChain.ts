@@ -1,5 +1,6 @@
 import { audioContextManager } from "../WebRtc/AudioContextManager";
-import { canKeepElementVolumePath } from "./VolumeModel";
+import { isIOS } from "../WebRtc/DeviceUtils";
+import { canKeepElementVolumePath, gainPathMutesElement } from "./VolumeModel";
 
 /**
  * Applying a level to a peer's audio.
@@ -16,11 +17,13 @@ import { canKeepElementVolumePath } from "./VolumeModel";
  *     and AudioContext.setSinkId() does not exist in Firefox, which is what the
  *     venue machine runs.
  *
- * So the choice is made by asking the one question that actually distinguishes
- * them: is there an output-device selection to preserve? Where setSinkId
- * exists, keep the element path and the device picker keeps working. Where it
- * does not -- iOS and Android Chrome both -- use gain, which is the only thing
- * that works on one of them and is harmless on the other.
+ * So iOS always takes gain, because nothing else works there -- and it cannot be
+ * told apart by setSinkId, which the iPhone turned out to have (measured in the
+ * room, 2026-10-05). Everywhere else the choice is made by asking the one
+ * question that distinguishes the paths: is there an output-device selection to
+ * preserve? Where setSinkId exists, keep the element path and the device picker
+ * keeps working. Where it does not -- Android Chrome -- use gain, which is
+ * harmless there.
  *
  * Note what is NOT used as the test. Reading HTMLMediaElement.volume back after
  * writing it returns the value you wrote even on iOS, where it does nothing, so
@@ -49,17 +52,72 @@ export interface VolumeHandle {
 const RAMP_SECONDS = 0.05;
 
 /**
+ * Events that count as a user gesture for starting audio. iOS accepts a tap's
+ * touchend or click, but not touchstart.
+ */
+const GESTURE_EVENTS = ["touchend", "click", "keydown"] as const;
+
+/** The context currently waiting for a gesture, so listeners are added once. */
+let contextAwaitingGesture: AudioContext | undefined;
+
+/**
+ * Get the shared context running: try now, and failing that on every gesture
+ * until it is.
+ *
+ * Nothing else in the app resumes the shared context, and a resume() outside a
+ * gesture is ignored where the page has not been tapped yet, so a single try is
+ * not enough. Until it works the elements carry the sound (see
+ * gainPathMutesElement), so waiting costs volume control, not audio.
+ */
+function resumeUntilRunning(context: AudioContext): void {
+    if (context.state === "running" || context.state === "closed" || contextAwaitingGesture === context) {
+        return;
+    }
+    contextAwaitingGesture = context;
+
+    function stopListening() {
+        for (const type of GESTURE_EVENTS) {
+            document.removeEventListener(type, tryResume, true);
+        }
+        if (contextAwaitingGesture === context) {
+            contextAwaitingGesture = undefined;
+        }
+    }
+    function tryResume() {
+        if (context.state === "closed") {
+            stopListening();
+            return;
+        }
+        context
+            .resume()
+            .then(() => {
+                if (context.state === "running") {
+                    stopListening();
+                }
+            })
+            .catch(() => {
+                // Refused without a gesture; the next one tries again.
+            });
+    }
+
+    for (const type of GESTURE_EVENTS) {
+        document.addEventListener(type, tryResume, { capture: true, passive: true });
+    }
+    tryResume();
+}
+
+/**
  * Attach volume control to an audio element, picking the path that works.
  *
- * On the gain path the element is muted and kept playing: it stays the thing
- * that pulls the stream, while the audible copy comes out of the graph. Without
- * the element still running, Safari will not deliver samples to
- * createMediaStreamSource at all.
+ * On the gain path the element keeps playing: it stays the thing that pulls the
+ * stream, while the audible copy comes out of the graph. Without the element
+ * still running, Safari will not deliver samples to createMediaStreamSource at
+ * all. It is muted only while the graph can actually be heard.
  */
 export function attachVolume(target: VolumeTarget, initialLevel: number): VolumeHandle {
     const { element } = target;
 
-    if (canKeepElementVolumePath(element)) {
+    if (canKeepElementVolumePath(element, isIOS())) {
         let detached = false;
         element.muted = false;
         element.volume = initialLevel;
@@ -100,17 +158,31 @@ export function attachVolume(target: VolumeTarget, initialLevel: number): Volume
         source.connect(gain);
     };
 
-    // The element is the pump. Muting it prevents hearing the stream twice,
-    // once ungoverned through the element and once through the gain.
-    element.muted = true;
+    // The element is the pump. While the graph is audible it is muted, so the
+    // stream is not heard twice; while the graph is suspended it carries the
+    // sound itself, at a level that is honoured everywhere except iOS.
+    let level = initialLevel;
+    const followContextState = () => {
+        if (detached) {
+            return;
+        }
+        element.muted = gainPathMutesElement(context.state, level);
+        resumeUntilRunning(context);
+    };
+    element.volume = level;
+    context.addEventListener("statechange", followContextState);
+    followContextState();
     connectStream(target.stream);
 
     return {
         usesGain: true,
-        setLevel(level: number) {
+        setLevel(newLevel: number) {
             if (detached) {
                 return;
             }
+            level = newLevel;
+            element.volume = level;
+            element.muted = gainPathMutesElement(context.state, level);
             // setTargetAtTime rather than assigning .value: an abrupt change in
             // gain is an audible click.
             gain.gain.setTargetAtTime(level, context.currentTime, RAMP_SECONDS);
@@ -125,6 +197,7 @@ export function attachVolume(target: VolumeTarget, initialLevel: number): Volume
                 return;
             }
             detached = true;
+            context.removeEventListener("statechange", followContextState);
             if (source) {
                 source.disconnect();
                 source = undefined;
