@@ -18,12 +18,16 @@
     import { warningMessageStore } from "../../Stores/ErrorStore";
     import { activeSecondaryZoneActionBarStore } from "../../Stores/MenuStore";
     import { gameManager } from "../../Phaser/Game/GameManager";
+    import { LiveStreamKeeper } from "../../Audio/LiveStreamKeeper";
 
     let HTMLAudioPlayer: HTMLAudioElement;
     let unsubscriberFileStore: Unsubscriber | null = null;
     let unsubscriberVolumeStore: Unsubscriber | null = null;
     let unsubscriberEffectiveVolume: Unsubscriber | null = null;
     let retryPlayStoreSubscription: Subscription | null = null;
+    // Re-dials the zone's live stream when Icecast drops it. Without it, a
+    // one-second source blip left the bed silent until the page was reloaded.
+    let keeper: LiveStreamKeeper | undefined;
 
     /**
      * Stop playback and let go of the media resource, without destroying the
@@ -40,11 +44,36 @@
         HTMLAudioPlayer.load();
     }
 
+    /** Point the element at the zone's source and start it. Also used to re-dial. */
+    function startSource(src: string): void {
+        if (!HTMLAudioPlayer) return;
+        HTMLAudioPlayer.src = src;
+        HTMLAudioPlayer.load();
+        HTMLAudioPlayer.loop = get(audioManagerVolumeStore).loop;
+        HTMLAudioPlayer.volume = get(audioManagerEffectiveVolumeStore);
+        HTMLAudioPlayer.muted = get(audioManagerVolumeStore).muted;
+        tryPlay();
+    }
+
     onMount(() => {
         // The store seeds itself from localStorage. Re-applying it here with a
         // Math.min against the live value is what used to ratchet the level down.
 
+        // Created before the file store subscription, which fires immediately.
+        keeper = new LiveStreamKeeper(HTMLAudioPlayer, {
+            redial: (src) => startSource(src),
+            mayPlay: () => {
+                const volume = get(audioManagerVolumeStore);
+                return !volume.stopped && !volume.paused;
+            },
+            expectingAudio: () => get(audioManagerPlayerState) === "playing",
+            onReconnecting: () => audioManagerPlayerState.set("loading"),
+            // Still down after ~30 s of retries: say so once. Retrying carries on.
+            onLongOutage: () => warningMessageStore.addWarningMessage($LL.audio.manager.error()),
+        });
+
         unsubscriberFileStore = audioManagerFileStore.subscribe((src: string) => {
+            keeper?.setSource(src);
             (async () => {
                 if (src == "") {
                     // Left the audio zone.
@@ -52,12 +81,7 @@
                     return;
                 }
                 await tick();
-                HTMLAudioPlayer.src = src;
-                HTMLAudioPlayer.load();
-                HTMLAudioPlayer.loop = get(audioManagerVolumeStore).loop;
-                HTMLAudioPlayer.volume = get(audioManagerEffectiveVolumeStore);
-                HTMLAudioPlayer.muted = get(audioManagerVolumeStore).muted;
-                tryPlay();
+                startSource(src);
             })().catch(console.error);
         });
         // The level is read from the derived store; nothing here modifies it.
@@ -82,6 +106,7 @@
                 // Use paused attribute to manage audio
                 if (audioManager.stopped) {
                     // Done with this sound: let go of the stream and its connection.
+                    keeper?.stop();
                     releasePlayer();
                 } else if (audioManager.paused) {
                     // Paused is resumable, so keep the source loaded.
@@ -113,6 +138,7 @@
             unsubscriberEffectiveVolume();
         }
         retryPlayStoreSubscription?.unsubscribe();
+        keeper?.destroy();
         audioManagerPlayerState.set(undefined);
 
         // Release the media resource explicitly. Detaching an element that has
@@ -129,6 +155,9 @@
     function tryPlay() {
         if (!HTMLAudioPlayer) return;
         HTMLAudioPlayer.onended = () => {
+            // A live stream never really ends: Icecast closed the connection
+            // because its source dropped. Re-dial instead of hiding the player.
+            if (keeper?.ended()) return;
             // Fixme: this is a hack to close menu when audio is ends without cut the sound
             actionsMenuStore.clear();
             // Audiovisilibily is set to false when audio is ended
@@ -141,16 +170,15 @@
         HTMLAudioPlayer.onloadstart = () => {
             audioManagerPlayerState.set("loading");
         };
-        HTMLAudioPlayer.onerror = (event, error) => {
-            console.error("HTMLAudioPlayer.onerror", event, error);
-            const gameScene = gameManager.getCurrentGameScene();
-            if (!gameScene) return;
-            gameScene.CurrentPlayer.playText("audio-not-allowed", $LL.audio.manager.notAllowed(), 10000, () => {
-                // When user click, the message could be removed
-                gameScene.CurrentPlayer.destroyText("audio-not-allowed");
-                // When the user clicks on the message, we try to play the audio again
-                tryPlay();
-            });
+        HTMLAudioPlayer.onerror = () => {
+            // A media error is a network or source failure (an Icecast mount
+            // answers 404 while its source is down), never an autoplay block --
+            // that arrives as a rejected play(), handled below. This used to show
+            // the "audio not allowed" bubble, which sent people hunting for a
+            // permission that was never the problem.
+            const mediaError = HTMLAudioPlayer.error;
+            console.error("HTMLAudioPlayer.onerror", mediaError?.code, mediaError?.message);
+            keeper?.failed(`media error ${mediaError?.code ?? "?"}`);
         };
         HTMLAudioPlayer.onprogress = () => {
             console.log("HTMLAudioPlayer.onprogress");
@@ -159,9 +187,12 @@
 
         HTMLAudioPlayer.play()
             .then(() => {
+                const wasReconnect = keeper?.playing() ?? false;
                 audioManagerPlayerState.set("playing");
                 audioManagerVisibilityStore.set("visible");
-                activeSecondaryZoneActionBarStore.set("audio-manager");
+                // Open the volume panel on entering a zone, not every time a
+                // dropped stream comes back.
+                if (!wasReconnect) activeSecondaryZoneActionBarStore.set("audio-manager");
             })
             .catch((e) => {
                 // If the audio is stopped, we don't play it
@@ -190,11 +221,15 @@
                             }
                         );
                     }
+                } else if (e instanceof DOMException && e.name === "AbortError") {
+                    // A newer load() superseded this play() (a zone change or a
+                    // re-dial). Not a failure; retrying here would fight that load.
+                    console.debug("The audio play() was superseded by a new load: ", e.message);
                 } else {
-                    audioManagerPlayerState.set("error");
-                    warningMessageStore.addWarningMessage($LL.audio.manager.error());
+                    // Typically NotSupportedError: the mount answered 404 because
+                    // its source is down. This used to be terminal until reload.
                     console.error("The audio could not be played: ", e.name, e);
-                    audioManagerVisibilityStore.set("error");
+                    keeper?.failed(`play() failed: ${e instanceof Error ? e.name : String(e)}`);
                 }
             });
     }
