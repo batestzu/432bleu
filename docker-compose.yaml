@@ -322,11 +322,17 @@ services:
   uploader:
     restart: unless-stopped
     image: thecodingmachine/nodejs:v2-20-bullseye
-    command: npm run dev
+    # Production entrypoint: `start` is `tsx ./server.ts`. `dev` was
+    # `tsx watch --inspect=0.0.0.0:9229` — a Node debugger bound to all interfaces
+    # (reachable to anything on the docker network, and mapped to host 9234) plus
+    # hot reload. uploader has no vite/front build, so `start` carries none of the
+    # map-storage NODE_ENV=production crash-loop risk. (2026-11-16 security sweep.)
+    command: npm run start
     #command: npm run profile
     working_dir: /usr/src/app/uploader
     environment:
-      DEBUG: "*"
+      NODE_ENV: production
+      DEBUG: ""
       STARTUP_COMMAND_1: ../npm-install.sh
       UPLOADER_URL: http://uploader.workadventure.localhost
       #AWS
@@ -345,8 +351,8 @@ services:
     volumes:
       - .:/usr/src/app
     tmpfs: /tmp
-    ports:
-      - "9234:9229"
+    # No debug inspector port: the prod `start` command does not open one, and this
+    # map only ever exposed the dev --inspect debugger. (2026-11-16 security sweep.)
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.uploader.rule=Host(`uploader.workadventure.localhost`)"
