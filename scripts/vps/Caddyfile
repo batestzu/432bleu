@@ -36,7 +36,14 @@ play.432bleu.com {
     }
 
     handle {
-        @gate_root path / /~/* /_/* /@/*
+        # Gate the SPA entry paths AND the room transport. /ws/* is the authoritative
+        # guard: the room is joined over that websocket, and the SPA can reach it from
+        # any shell path via history.pushState without re-fetching through Caddy — so
+        # gating page paths alone is bypassable (2026-11-16: anon got in via
+        # /register/~/concert.wam, whose shell loaded ungated then joined over /ws/).
+        # /login and /jwt stay OPEN on purpose: OIDC staff login uses play's /login ->
+        # /openid-callback, and /ws/* backstops them anyway.
+        @gate_root path / /~/* /_/* /@/* /ws/* /register/*
         forward_auth @gate_root localhost:8080 {
             uri /api/gate/check
             header_up Host boxoffice.432bleu.com
