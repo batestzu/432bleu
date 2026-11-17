@@ -47,6 +47,16 @@ play.432bleu.com {
         forward_auth @gate_root localhost:8080 {
             uri /api/gate/check
             header_up Host boxoffice.432bleu.com
+            # The check must be a plain HTTP question. Otherwise the Upgrade headers of a
+            # websocket are copied onto it, the box office treats the check itself as a
+            # websocket handshake and refuses it (403), and nobody can join the room,
+            # ticket or not. The real websocket keeps its headers. (2026-11-17)
+            header_up -Connection
+            header_up -Upgrade
+            header_up -Sec-WebSocket-Key
+            header_up -Sec-WebSocket-Version
+            header_up -Sec-WebSocket-Extensions
+            header_up -Sec-WebSocket-Protocol
         }
         reverse_proxy localhost:8080
     }
