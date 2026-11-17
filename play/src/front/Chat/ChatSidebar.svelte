@@ -3,7 +3,7 @@
     import { chatVisibilityStore, INITIAL_SIDEBAR_WIDTH, INITIAL_SIDEBAR_WIDTH_MOBILE } from "../Stores/ChatStore";
     import { gameManager } from "../Phaser/Game/GameManager";
     import { isMediaBreakpointUp } from "../Utils/BreakpointsUtils";
-    import { selectedRoomStore } from "./Stores/SelectRoomStore";
+    import { LL } from "../../i18n/i18n-svelte";
     import Chat from "./Components/Chat.svelte";
     import { chatSidebarWidthStore, hideActionBarStoreBecauseOfChatBar } from "./ChatSidebarWidthStore";
     import { IconX } from "@wa-icons";
@@ -19,8 +19,6 @@
     function closeChat() {
         chatVisibilityStore.set(false);
     }
-
-    $: isInSpecificDiscussion = $selectedRoomStore !== undefined;
 
     let sideBarWidth: number = $chatSidebarWidthStore;
 
@@ -116,11 +114,15 @@
         style="width: {sideBarWidth}px; max-width: {sideBarWidth}px;"
         class=" chatWindow !min-w-[150px] max-sm:!min-w-[150px] bg-contrast/50 backdrop-blur-md p-0 screen-blocker"
     >
-        {#if $hideActionBarStoreBecauseOfChatBar && isInSpecificDiscussion}
+        <!-- When the panel is wide enough to hide the action bar (always, on a phone), this X is
+             the ONLY way out, so it must show in every state: list or discussion, chat online or
+             offline. It used to live in a dropdown that was only rendered while chat was online. -->
+        {#if $hideActionBarStoreBecauseOfChatBar}
             <div class="close-window absolute end-2 top-3 rounded-sm p-1 bg-contrast/80 z-50">
                 <button
-                    class="hover:bg-white/10 rounded aspect-square w-8 h-8 m-0 flex items-center justify-center !text-white"
+                    class="hover:bg-white/10 rounded aspect-square w-10 h-10 m-0 flex items-center justify-center !text-white"
                     data-testid="closeChatButton"
+                    aria-label={$LL.chat.closeChat()}
                     on:click={closeChat}
                 >
                     <IconX font-size="20" />
