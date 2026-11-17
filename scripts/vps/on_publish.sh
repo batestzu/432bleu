@@ -15,15 +15,20 @@ INCOMING=$1
 LOG=$VSPOT_HOME/relay.log
 FFLOG=$VSPOT_HOME/relay_ffmpeg.log
 
-slog "$LOG" "publish started (name=$INCOMING)"
+# $INCOMING IS the stream key. Log its fingerprint, never the key itself.
+slog "$LOG" "publish started (key #$(key_tag "$INCOMING"))"
 
 # Refuse unknown stream keys. nginx-rtmp's exec_publish cannot reject the TCP
 # publisher itself, but exiting here means an unknown key is never relayed to
 # Owncast or Icecast — the house loop just keeps playing over it.
 if [ -n "${STREAM_KEY:-}" ] && [ "$INCOMING" != "$STREAM_KEY" ]; then
-    slog "$LOG" "REFUSED unknown stream key '$INCOMING'"
+    slog "$LOG" "REFUSED unknown stream key (#$(key_tag "$INCOMING"), ${#INCOMING} chars)"
     exit 1
 fi
+
+# Stamp BEFORE waiting for the lock, so an on_publish_done for the previous
+# connection that is still queued behind it knows to stand down.
+stamp_publish
 
 # Serialize against start_loop.sh and on_publish_done.sh. Children inherit the
 # guard so the fallback below does not deadlock on our own lock.

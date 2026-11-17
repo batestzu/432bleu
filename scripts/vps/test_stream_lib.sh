@@ -4,7 +4,9 @@
 # by the previous scripts) and the NEW form this change introduces. A deploy has
 # to be able to kill the old ones, so every pattern must match both.
 # Runs anywhere: it only spawns fake processes named ffmpeg and talks to ports
-# nothing is listening on. Safe to run on the VPS; it never touches the real legs.
+# nothing is listening on. Run it on Zoltan, NOT on the VPS: kill_pattern finds
+# processes by command pattern, so it would also kill the real house loop, or a
+# live relay mid-show. (Until 2026-11-16 this comment said the VPS was safe.)
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 export VSPOT_HOME=$(mktemp -d)
 source "$HERE/stream_lib.sh"
@@ -158,6 +160,43 @@ spawn "$NEW_LOOP_VIDEO"
 kill_pattern "$PAT_LOOP_VIDEO" "loop video" "$LOG"
 if kill -0 "$DECOY" 2>/dev/null; then ok "decoy shell survived"; else bad "decoy shell was killed"; fi
 check "the real leg was still killed" "$(pids_matching "$PAT_LOOP_VIDEO" | wc -l)" 0
+
+echo "== short SIGTERM wait: a relay that ignores SIGTERM is gone in ~2s, not 12"
+# At show #23 (2026-11-11) every mid-show drop spent 12 s per relay leg here.
+# Ignored signals survive exec, so this fake behaves like a relay blocked on a
+# dead input.
+spawn_deaf() { setsid bash -c "trap '' TERM; exec -a \"$1\" \"$FAKE\" 120" & SPAWNED+=($!); disown 2>/dev/null; sleep 0.1; }
+kill_pattern "$PAT_RELAY_VIDEO" "relay video" "$LOG"   # clear earlier fakes
+spawn_deaf "$NEW_RELAY_VIDEO"
+t0=$(date +%s)
+kill_pattern "$PAT_RELAY_VIDEO" "relay video" "$LOG" 2
+el=$(( $(date +%s) - t0 ))
+check "deaf relay killed" "$(pids_matching "$PAT_RELAY_VIDEO" | wc -l)" 0
+if [ "$el" -le 4 ]; then ok "gone in ${el}s with a 2s wait"; else bad "took ${el}s with a 2s wait"; fi
+if grep -q "relay video ignored SIGTERM for 2s" "$LOG"; then ok "log names the real wait"; else bad "log does not name the 2s wait"; fi
+
+echo "== key_tag identifies a key without revealing it"
+tag=$(key_tag "$K")
+if [[ $tag =~ ^[0-9a-f]{8}$ ]]; then ok "key_tag is 8 hex chars"; else bad "key_tag format: $tag"; fi
+case "$tag" in *"$K"*) bad "key_tag contains the key";; *) ok "key_tag does not contain the key";; esac
+check "key_tag is stable" "$(key_tag "$K")" "$tag"
+if [ "$(key_tag "${K}x")" != "$tag" ]; then ok "a different key gets a different tag"; else bad "tag collision"; fi
+
+echo "== published_since: a reconnect that beat on_publish_done to the lock is recognised"
+rm -f "$PUBLISH_STAMP"
+fired=$(now_ns)
+if published_since "$fired"; then bad "true with no publish at all"; else ok "false when nothing has published"; fi
+sleep 0.01; stamp_publish
+if published_since "$fired"; then ok "true for a publish after the drop"; else bad "false for a publish after the drop"; fi
+sleep 0.01
+if published_since "$(now_ns)"; then bad "true for a publish before the drop"; else ok "false for a publish before the drop"; fi
+echo garbage > "$PUBLISH_STAMP"
+if published_since "$fired"; then bad "true for a corrupt stamp"; else ok "false for a corrupt stamp"; fi
+
+echo "== logs are private"
+check "umask after sourcing" "$(umask)" "0027"
+slog "$VSPOT_HOME/fresh.log" "x"
+check "a new log is 640" "$(stat -c %a "$VSPOT_HOME/fresh.log")" 640
 
 cleanup
 echo

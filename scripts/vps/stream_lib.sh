@@ -37,6 +37,11 @@ VSPOT_HOME=${VSPOT_HOME:-/home/vspot}
 OWNCAST_API=${OWNCAST_API:-http://localhost:8085}
 ICECAST_PORT=${ICECAST_PORT:-8005}
 
+# Logs, pidfiles and the publish stamp are for vspot alone. The publish hooks
+# run under nginx with a umask of 000, which is how relay.log ended up mode 666:
+# world-readable and world-writable.
+umask 027
+
 # --- process patterns --------------------------------------------------------
 # Matched by pgrep/pkill -f against the whole command line, as extended regex.
 # Both loop legs read loop.mp4 with -stream_loop; both relay legs read from
@@ -60,6 +65,12 @@ slog() {
     echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] $*" >> "$f"
 }
 
+# key_tag <key>  ->  8 hex chars that identify a stream key without revealing it.
+# NEVER write a stream key itself to a log. Until 2026-11-16 relay.log carried
+# it in plain text on every publish, and reading that log during a post-mortem
+# printed the live key into a session transcript.
+key_tag() { printf '%s' "$1" | sha256sum | cut -c1-8; }
+
 # --- process control ---------------------------------------------------------
 # pids_matching <pattern>
 # Candidates from pgrep, then narrowed to processes whose name really is
@@ -81,22 +92,28 @@ pids_matching() {
     return $found
 }
 
-# kill_pattern <pattern> <label> <logfile>
-# SIGTERM, wait up to 12s, SIGKILL, wait up to 4s. Returns 0 only when nothing
-# matching the pattern is left. Owncast frees its publisher slot when the
-# connection is really gone, not when kill() returns, so callers must wait.
+# kill_pattern <pattern> <label> <logfile> [term_wait_s]
+# SIGTERM, wait up to term_wait_s (default 12), SIGKILL, wait up to 4s. Returns
+# 0 only when nothing matching the pattern is left. Owncast frees its publisher
+# slot when the connection is really gone, not when kill() returns, so callers
+# must wait.
+#
+# Pass a short wait for relay legs whose publisher has already gone. They sit
+# blocked reading the dead input and never act on SIGTERM. At show #23
+# (2026-11-11) each of the five mid-show drops spent 24 s here, 12 s per leg,
+# before the house loop could even start.
 kill_pattern() {
-    local pat=$1 label=$2 logf=$3 i pids
+    local pat=$1 label=$2 logf=$3 term_wait=${4:-12} i pids
     pids=$(pids_matching "$pat")
     [ -z "$pids" ] && return 0
     slog "$logf" "killing $label (pids: $(echo $pids | tr '\n' ' '))"
     kill $pids 2>/dev/null
-    for i in $(seq 1 24); do
+    for i in $(seq 1 $((term_wait * 2))); do
         pids=$(pids_matching "$pat")
         [ -z "$pids" ] && { slog "$logf" "$label released"; return 0; }
         sleep 0.5
     done
-    slog "$logf" "$label ignored SIGTERM for 12s, sending SIGKILL"
+    slog "$logf" "$label ignored SIGTERM for ${term_wait}s, sending SIGKILL"
     kill -9 $pids 2>/dev/null
     for i in $(seq 1 8); do
         pids=$(pids_matching "$pat")
@@ -105,6 +122,32 @@ kill_pattern() {
     done
     slog "$logf" "ERROR: $label still running after SIGKILL (pids: $(echo $pids | tr '\n' ' '))"
     return 1
+}
+
+# relay_running — 0 while either leg of a performer's relay is up.
+relay_running() {
+    pids_matching "$PAT_RELAY_VIDEO" >/dev/null && return 0
+    pids_matching "$PAT_RELAY_AUDIO" >/dev/null && return 0
+    return 1
+}
+
+# --- publish ordering --------------------------------------------------------
+# When OBS drops and reconnects, on_publish_done (for the old connection) and
+# on_publish (for the new one) both queue on the stream lock, and flock does not
+# serve waiters in order. If on_publish wins, it brings the new relay up, and a
+# naive on_publish_done would then kill that relay and start the house loop over
+# a performer who is live. Nothing would fix it until OBS was stopped and
+# started by hand. So on_publish stamps when it began, and on_publish_done
+# stands down if that stamp is newer than the moment it fired.
+PUBLISH_STAMP=$VSPOT_HOME/last_publish
+now_ns() { date +%s%N; }
+stamp_publish() { now_ns > "$PUBLISH_STAMP"; }
+
+# published_since <ns> — 0 when an accepted publish started after <ns>.
+published_since() {
+    local t
+    t=$(cat "$PUBLISH_STAMP" 2>/dev/null) || return 1
+    [ -n "$t" ] && [ "$t" -gt "$1" ] 2>/dev/null
 }
 
 # record_pid <pattern> <pidfile>

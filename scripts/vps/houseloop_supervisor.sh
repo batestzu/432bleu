@@ -27,7 +27,12 @@
 #   * Owncast is not online     -- nothing else holds the publisher slot
 #
 # Anything else and we do nothing this tick. Doing nothing is always safe here;
-# the next tick is 15s away.
+# the next tick is a few seconds away.
+#
+# Since 2026-11-16 this is also how the loop comes back after a show or a
+# mid-show drop: on_publish_done kills the relays and leaves the restart to us,
+# so a tick must be short. The old 15 s tick was fine for re-homing between
+# shows, but here every second of it is dead air. A tick costs a few pgreps.
 
 set -u
 
@@ -35,19 +40,16 @@ source /home/vspot/owncast.conf
 source /home/vspot/stream_lib.sh
 
 LOG=$VSPOT_HOME/loop.log
-INTERVAL=${HOUSELOOP_INTERVAL:-15}
+INTERVAL=${HOUSELOOP_INTERVAL:-3}
 LOCK=$VSPOT_HOME/stream.lock
 
 # Our own cgroup path. Loop legs must live here; any leg outside it was started
-# by on_publish_done under nginx and is one `systemctl restart nginx` from death.
+# under nginx (on_publish_done's fallback, or on_publish's relay-failed path)
+# and is one `systemctl restart nginx` from death.
 my_cgroup() { awk -F: '{print $3}' /proc/self/cgroup 2>/dev/null | head -1; }
 MY_CG=$(my_cgroup)
 
-relay_running() {
-    pids_matching "$PAT_RELAY_VIDEO" >/dev/null && return 0
-    pids_matching "$PAT_RELAY_AUDIO" >/dev/null && return 0
-    return 1
-}
+# relay_running lives in stream_lib.sh (on_publish_done uses it too).
 
 # 0 when at least one loop leg is running outside our cgroup.
 legs_foreign() {
@@ -101,7 +103,7 @@ while :; do
             fi
 
         elif legs_foreign; then
-            # on_publish_done restarted the loop under nginx after a show.
+            # Something started the loop under nginx (a fallback path).
             # Re-home it so the next nginx restart cannot kill the venue.
             slog "$LOG" "supervisor: loop legs outside unit cgroup (started under nginx), re-homing"
             run_start_loop \
