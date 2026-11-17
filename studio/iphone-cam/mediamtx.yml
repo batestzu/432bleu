@@ -1,0 +1,48 @@
+# iPhone camera receiver on Zoltan (MediaMTX). Phones running Blackmagic Camera
+# publish over the LAN; OBS on this machine reads the feeds back as Media Sources.
+#
+#   phone -> rtmp://<zoltan-lan-ip>:1936/live   key: cam1 (or cam2)
+#   phone -> srt://<zoltan-lan-ip>:8890         streamid: publish:live/cam1
+#   OBS   <- rtmp://127.0.0.1:1936/live/cam1
+#
+# Host port 1936, not 1935: the old local Owncast container already holds 1935.
+# Docker-published ports bypass ufw, so no firewall rule is needed.
+
+logLevel: info
+
+rtmp: yes
+rtmpAddress: :1935
+srt: yes
+srtAddress: :8890
+api: yes
+apiAddress: :9997
+
+rtsp: no
+hls: no
+webrtc: no
+metrics: no
+pprof: no
+playback: no
+moq: no
+
+# Publish: phones on any private LAN (home, venue, travel router).
+# Read + API: this machine only. Connections from the host arrive through
+# Docker's bridge gateway (172.17.0.1), so 172.16.0.0/12 means "Zoltan itself".
+authMethod: internal
+authInternalUsers:
+  - user: any
+    pass:
+    ips: ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
+    permissions:
+      - action: publish
+  - user: any
+    pass:
+    ips: ['127.0.0.1/32', '::1/128', '172.16.0.0/12']
+    permissions:
+      - action: read
+      - action: api
+
+# Two camera slots. Accept "cam1" with or without the "live/" prefix, because
+# phone apps differ in how they join the server URL and the stream key.
+paths:
+  "~^(live/)?cam[12]$":

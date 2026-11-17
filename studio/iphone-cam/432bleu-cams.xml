@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<streaming>
+    <service>
+        <name>432 Bleu Cams</name>
+        <servers>
+            <server>
+                <name>Home 10.0.0.190</name>
+                <url>rtmp://10.0.0.190:1936/live</url>
+            </server>
+            <server>
+                <name>Clubhouse 10.0.206.100</name>
+                <url>rtmp://10.0.206.100:1936/live</url>
+            </server>
+        </servers>
+        <profiles>
+            <profile>
+                <name>High 6 Mbps</name>
+                <config resolution="HD">
+                    <bitrate>6000000</bitrate>
+                    <audio-bitrate>128000</audio-bitrate>
+                    <keyframe-interval>2</keyframe-interval>
+                </config>
+            </profile>
+            <profile>
+                <name>Medium 4.5 Mbps</name>
+                <config resolution="HD">
+                    <bitrate>4500000</bitrate>
+                    <audio-bitrate>128000</audio-bitrate>
+                    <keyframe-interval>2</keyframe-interval>
+                </config>
+            </profile>
+            <profile>
+                <name>Low 3 Mbps</name>
+                <config resolution="HD">
+                    <bitrate>3000000</bitrate>
+                    <audio-bitrate>128000</audio-bitrate>
+                    <keyframe-interval>2</keyframe-interval>
+                </config>
+            </profile>
+        </profiles>
+    </service>
+</streaming>

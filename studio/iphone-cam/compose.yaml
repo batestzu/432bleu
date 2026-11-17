@@ -1,0 +1,14 @@
+# Start: docker compose up -d   (from this directory)
+# Check: curl -s http://127.0.0.1:9997/v3/paths/list
+name: iphone-cam
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.2
+    container_name: iphone-cam
+    restart: unless-stopped
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "1936:1935/tcp"
+      - "8890:8890/udp"
+      - "127.0.0.1:9997:9997/tcp"

@@ -59,3 +59,6 @@ loadtest/t1-wa-bots/*.wam
 media/*
 !media/.gitkeep
 !media/README.md
+
+# Show-day ping logs from studio/netwatch (local data, not code)
+studio/netwatch/logs/
